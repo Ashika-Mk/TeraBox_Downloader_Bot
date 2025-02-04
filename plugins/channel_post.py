@@ -172,7 +172,7 @@ async def handle_download_command(client: Client, message: Message):
             return
 
 
-    if not shortener_url or not shortener_api:
+    if not shortener_url or not shortener_api or not is_premium:
 
         await message.reply(
             "⚠️ Your 1 limit has expired.**\n\n"
