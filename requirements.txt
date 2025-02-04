@@ -1,0 +1,28 @@
+# --- For-Bot-Working --------- #
+pyrogram
+pyrofork==2.3.38
+TgCrypto
+pyromod
+schedule
+APscheduler
+# --- For-Database ------------ #
+pymongo
+motor
+dnspython
+# --- For-Web-Response ------- #
+aiohttp
+python-dotenv
+# --- For-Web-Response ------- #
+pytz
+requests
+bs4
+shortzy
+aiofiles
+asyncio
+# --- For-Terabox-Download ------- #
+tgcrypto
+uvloop
+aria2p
+gunicorn
+gevent
+flask
