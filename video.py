@@ -28,17 +28,17 @@ from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid
 from datetime import datetime, timedelta
 from pytz import timezone
 from io import BytesIO
-
-
+import httpx
 
 async def download_video(url, reply_msg, user_mention, user_id):
     try:
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        response = requests.get(f"https://tbox-vids.vercel.app/api?data={url}")
-        response.raise_for_status()
-        data = response.json()
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
+            response.raise_for_status()
+            data = response.json()
 
         if "file_name" not in data or "direct_link" not in data:
             raise Exception("Invalid API response")
@@ -52,67 +52,51 @@ async def download_video(url, reply_msg, user_mention, user_id):
 
         logging.info(f"Downloading: {video_title} | Size: {video_size} bytes")
 
-        # Start Aria2 download with headers
-        download = await asyncio.to_thread(aria2.add_uris, [download_link], options={
-            "header": [
-                f"Accept: {headersList['Accept']}",
-                f"Accept-Encoding: {headersList['Accept-Encoding']}",
-                f"Accept-Language: {headersList['Accept-Language']}",
-                f"Connection: {headersList['Connection']}",
-                f"Cookie: {headersList['Cookie']}",
-                f"DNT: {headersList['DNT']}",
-                f"Host: {headersList['Host']}",
-                f"Sec-Fetch-Dest: {headersList['Sec-Fetch-Dest']}",
-                f"Sec-Fetch-Mode: {headersList['Sec-Fetch-Mode']}",
-                f"Sec-Fetch-Site: {headersList['Sec-Fetch-Site']}",
-                f"Sec-Fetch-User: {headersList['Sec-Fetch-User']}",
-                f"Upgrade-Insecure-Requests: {headersList['Upgrade-Insecure-Requests']}",
-                f"User-Agent: {headersList['User-Agent']}",
-                f"sec-ch-ua: {headersList['sec-ch-ua']}",
-                f"sec-ch-ua-mobile: {headersList['sec-ch-ua-mobile']}",
-                f"sec-ch-ua-platform: {headersList['sec-ch-ua-platform']}"
-            ]
-        })
+        # Define download path
+        file_path = f"/tmp/{video_title}"
 
-        start_time = datetime.now()
-        last_percentage = 0
+        # Start download using httpx
+        async with httpx.AsyncClient() as client:
+            async with client.stream("GET", download_link) as response:
+                response.raise_for_status()
+                total_size = int(response.headers.get("content-length", 0))
+                downloaded = 0
 
-        while not download.is_complete:
-            download.update()
-            percentage = int(download.progress)
-            speed = download.download_speed / (1024 * 1024)  # Convert to MB/s
-            eta = download.eta
-            elapsed_time = (datetime.now() - start_time).total_seconds()
+                with open(file_path, "wb") as file:
+                    start_time = datetime.now()
+                    last_percentage = 0
 
-            # Update progress only if percentage has changed significantly
-            if percentage >= last_percentage + 2:
-                progress_text = (
-                    f"📥 **Downloading:** {video_title}\n"
-                    f"📊 **Progress:** {percentage}%\n"
-                    f"🚀 **Speed:** {speed:.2f} MB/s\n"
-                    f"⏳ **ETA:** {eta}s\n"
-                    f"⏱ **Elapsed:** {elapsed_time:.2f}s\n"
-                )
-                await reply_msg.edit_text(progress_text)
-                last_percentage = percentage
+                    async for chunk in response.aiter_bytes(1024 * 1024):  # 1MB chunks
+                        file.write(chunk)
+                        downloaded += len(chunk)
+                        percentage = int((downloaded / total_size) * 100) if total_size else 0
+                        elapsed_time = (datetime.now() - start_time).total_seconds()
+                        speed = (downloaded / elapsed_time) / (1024 * 1024) if elapsed_time > 0 else 0
 
-            await asyncio.sleep(2)  # Faster updates
+                        if percentage >= last_percentage + 2:
+                            progress_text = (
+                                f"📥 **Downloading:** {video_title}\n"
+                                f"📊 **Progress:** {percentage}%\n"
+                                f"🚀 **Speed:** {speed:.2f} MB/s\n"
+                                f"⏳ **Elapsed:** {elapsed_time:.2f}s\n"
+                            )
+                            await reply_msg.edit_text(progress_text)
+                            last_percentage = percentage
 
-        if download.is_complete:
-            file_path = download.files[0].path
-            logging.info(f"Download complete: {file_path}")
+        logging.info(f"Download complete: {file_path}")
 
-            # Download thumbnail
-            thumbnail_path = None
-            if thumbnail_url:
-                thumb_response = requests.get(thumbnail_url)
-                thumbnail_path = f"{os.path.splitext(file_path)[0]}_thumb.jpg"
-                with open(thumbnail_path, "wb") as thumb_file:
-                    thumb_file.write(thumb_response.content)
-                logging.info(f"Thumbnail saved: {thumbnail_path}")
+        # Download thumbnail
+        thumbnail_path = None
+        if thumbnail_url:
+            async with httpx.AsyncClient() as client:
+                thumb_response = await client.get(thumbnail_url)
+            thumbnail_path = f"{os.path.splitext(file_path)[0]}_thumb.jpg"
+            with open(thumbnail_path, "wb") as thumb_file:
+                thumb_file.write(thumb_response.content)
+            logging.info(f"Thumbnail saved: {thumbnail_path}")
 
-            await reply_msg.edit_text(f"✅ **Download Complete!**\n📽️ **Duration:** {video_duration}")
-            return file_path, thumbnail_path, video_title, video_duration
+        await reply_msg.edit_text(f"✅ **Download Complete!**\n📽️ **Duration:** {video_duration}")
+        return file_path, thumbnail_path, video_title, video_duration
 
     except Exception as e:
         logging.error(f"Error: {e}")
@@ -121,7 +105,6 @@ async def download_video(url, reply_msg, user_mention, user_id):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Download Manually", url=url)]])
         )
         return None, None, None, None
-
 
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
