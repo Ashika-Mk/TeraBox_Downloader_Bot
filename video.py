@@ -35,19 +35,28 @@ async def download_video(url, reply_msg, user_mention, user_id):
     try:
         logging.info(f"Fetching video info: {url}")
 
-        # Fetch video details
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
-            response.raise_for_status()
-            data = response.json()
+        # Fetch video details with retry logic
+        for attempt in range(3):  # Retry up to 3 times
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
+                    response.raise_for_status()
+                    data = response.json()
+                break  # Exit loop if request is successful
+            except httpx.ReadTimeout:
+                logging.warning(f"Attempt {attempt + 1}: API request timed out. Retrying...")
+                await asyncio.sleep(5)  # Wait before retrying
+        else:
+            raise Exception("API request failed after multiple attempts.")
 
+        # Validate API response
         if "file_name" not in data or "direct_link" not in data:
-            raise Exception("Invalid API response")
+            raise Exception("Invalid API response format.")
 
         # Extract details
         download_link = data["direct_link"]
         video_title = data["file_name"]
-        video_size = data["sizebytes"]
+        video_size = data.get("sizebytes", 0)
         thumbnail_url = data.get("thumb")
         video_duration = data.get("time", "Unknown")
 
@@ -62,46 +71,58 @@ async def download_video(url, reply_msg, user_mention, user_id):
 
         file_path = f"{video_title}"
 
-        # Start Download
-        async with httpx.AsyncClient() as client:
-            with open(file_path, "wb") as f:
-                async with client.stream("GET", download_link, headers=headers) as response:
-                    response.raise_for_status()
-                    total_size = int(response.headers.get("content-length", 0))
-                    downloaded = 0
-                    start_time = datetime.now()
-                    last_percentage = 0
+        # Start video download with retry logic
+        for attempt in range(3):  # Retry up to 3 times
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    with open(file_path, "wb") as f:
+                        async with client.stream("GET", download_link, headers=headers) as response:
+                            response.raise_for_status()
+                            total_size = int(response.headers.get("content-length", 0))
+                            downloaded = 0
+                            start_time = datetime.now()
+                            last_percentage = 0
 
-                    async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
-                        f.write(chunk)
-                        downloaded += len(chunk)
+                            async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
+                                f.write(chunk)
+                                downloaded += len(chunk)
 
-                        # Progress Update
-                        percentage = int((downloaded / total_size) * 100) if total_size else 0
-                        elapsed_time = (datetime.now() - start_time).total_seconds()
-                        speed = (downloaded / (1024 * 1024)) / elapsed_time if elapsed_time > 0 else 0
+                                # Progress Update
+                                percentage = int((downloaded / total_size) * 100) if total_size else 0
+                                elapsed_time = (datetime.now() - start_time).total_seconds()
+                                speed = (downloaded / (1024 * 1024)) / elapsed_time if elapsed_time > 0 else 0
 
-                        if percentage >= last_percentage + 2:
-                            progress_text = (
-                                f"📥 **Downloading:** {video_title}\n"
-                                f"📊 **Progress:** {percentage}%\n"
-                                f"🚀 **Speed:** {speed:.2f} MB/s\n"
-                                f"⏳ **Elapsed:** {elapsed_time:.2f}s\n"
-                            )
-                            await reply_msg.edit_text(progress_text)
-                            last_percentage = percentage
+                                if percentage >= last_percentage + 2:
+                                    progress_text = (
+                                        f"📥 **Downloading:** {video_title}\n"
+                                        f"📊 **Progress:** {percentage}%\n"
+                                        f"🚀 **Speed:** {speed:.2f} MB/s\n"
+                                        f"⏳ **Elapsed:** {elapsed_time:.2f}s\n"
+                                    )
+                                    await reply_msg.edit_text(progress_text)
+                                    last_percentage = percentage
+                break  # Exit loop if download is successful
+            except httpx.ReadTimeout:
+                logging.warning(f"Attempt {attempt + 1}: Download request timed out. Retrying...")
+                await asyncio.sleep(5)  # Wait before retrying
+        else:
+            raise Exception("Video download failed after multiple attempts.")
 
         logging.info(f"Download complete: {file_path}")
 
-        # Download thumbnail
+        # Download thumbnail if available
         thumbnail_path = None
         if thumbnail_url:
-            async with httpx.AsyncClient() as client:
-                thumb_response = await client.get(thumbnail_url)
-                thumbnail_path = f"{os.path.splitext(file_path)[0]}_thumb.jpg"
-                with open(thumbnail_path, "wb") as thumb_file:
-                    thumb_file.write(thumb_response.content)
-            logging.info(f"Thumbnail saved: {thumbnail_path}")
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    thumb_response = await client.get(thumbnail_url)
+                    thumb_response.raise_for_status()
+                    thumbnail_path = f"{os.path.splitext(file_path)[0]}_thumb.jpg"
+                    with open(thumbnail_path, "wb") as thumb_file:
+                        thumb_file.write(thumb_response.content)
+                logging.info(f"Thumbnail saved: {thumbnail_path}")
+            except httpx.HTTPError as e:
+                logging.warning(f"Failed to download thumbnail: {e}")
 
         await reply_msg.edit_text(f"✅ **Download Complete!**\n📽️ **Duration:** {video_duration}")
         return file_path, thumbnail_path, video_title, video_duration
