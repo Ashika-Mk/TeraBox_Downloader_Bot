@@ -29,70 +29,7 @@ from datetime import datetime, timedelta
 from pytz import timezone
 from io import BytesIO
 
-COOKIE="PANWEB=1; csrfToken=tl2pqlIpZs-nq51FEEph_DW8; lang=en; TSID=3g9dXlXOottLSsQspciI9TLgJ3xdVY2m; __bid_n=18ea84278b11d086d64207; _ga=none; ndus=Yq7EMC3teHuiP-N36C2DBOIumBe6Fxt1NCf6es6w; browserid==H5Q7WeEh7u4Dhru6_RM96NUURbH7uwuPeAMiIjm4UCmk9ckdC2IS6TI04w0=; ndut_fmt=0783FEEEE10AA527370BA9BD3BFD896272C84225A1E2DFFBE420CE1B1BC7D99A; _ga_06ZNKL8C2E=none"
 
-
-#aria2 = aria2p.API(
-    #aria2p.Client(
-        #host="http://localhost",
-        #port=9090,
-        #secret=""
-    #)
-#)
-#options = {
-    #"max-tries": "50",
-    #"retry-wait": "3",
-    #"continue": "true"
-#}
-
-#aria2.set_global_options(options)
-
-
-db_channel_id=CHANNEL_ID
-
-
-# Configure logging
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-
-
-# Initialize Aria2 RPC
-aria2 = aria2p.API(
-    aria2p.Client(host="http://localhost", port=9055, secret="")
-)
-
-# Apply global settings for max speed
-aria2.set_global_options({
-    "max-connection-per-server": "16",  # Increase parallel connections
-    "split": "16",  # Split into 16 parts
-    "min-split-size": "5M",  # Ensure efficient chunking
-    "continue": "true",  # Enable resuming downloads
-    "enable-http-pipelining": "true",  # Optimize HTTP/HTTPS
-    "max-overall-download-limit": "0",  # No global limit
-    "max-download-limit": "0",  # No per-file limit
-})
-
-# Headers list
-headersList = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Accept-Language": "en-US,en;q=0.9,hi;q=0.8",
-    "Connection": "keep-alive",
-    "Cookie": "COOKIE",  # Replace with your actual cookies
-    "DNT": "1",
-    "Host": "www.terabox.app",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "sec-ch-ua": '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-}
 
 async def download_video(url, reply_msg, user_mention, user_id):
     try:
