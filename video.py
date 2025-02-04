@@ -30,6 +30,7 @@ from pytz import timezone
 from io import BytesIO
 import httpx
 
+
 async def download_video(url, reply_msg, user_mention, user_id):
     try:
         logging.info(f"Fetching video info: {url}")
@@ -52,26 +53,33 @@ async def download_video(url, reply_msg, user_mention, user_id):
 
         logging.info(f"Downloading: {video_title} | Size: {video_size} bytes")
 
-        # Define download path
-        file_path = f"/tmp/{video_title}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.terabox.com/",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Connection": "keep-alive",
+        }
 
-        # Start download using httpx
+        file_path = f"{video_title}"
+
+        # Start Download
         async with httpx.AsyncClient() as client:
-            async with client.stream("GET", download_link) as response:
-                response.raise_for_status()
-                total_size = int(response.headers.get("content-length", 0))
-                downloaded = 0
-
-                with open(file_path, "wb") as file:
+            with open(file_path, "wb") as f:
+                async with client.stream("GET", download_link, headers=headers) as response:
+                    response.raise_for_status()
+                    total_size = int(response.headers.get("content-length", 0))
+                    downloaded = 0
                     start_time = datetime.now()
                     last_percentage = 0
 
-                    async for chunk in response.aiter_bytes(1024 * 1024):  # 1MB chunks
-                        file.write(chunk)
+                    async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
+                        f.write(chunk)
                         downloaded += len(chunk)
+
+                        # Progress Update
                         percentage = int((downloaded / total_size) * 100) if total_size else 0
                         elapsed_time = (datetime.now() - start_time).total_seconds()
-                        speed = (downloaded / elapsed_time) / (1024 * 1024) if elapsed_time > 0 else 0
+                        speed = (downloaded / (1024 * 1024)) / elapsed_time if elapsed_time > 0 else 0
 
                         if percentage >= last_percentage + 2:
                             progress_text = (
@@ -90,16 +98,16 @@ async def download_video(url, reply_msg, user_mention, user_id):
         if thumbnail_url:
             async with httpx.AsyncClient() as client:
                 thumb_response = await client.get(thumbnail_url)
-            thumbnail_path = f"{os.path.splitext(file_path)[0]}_thumb.jpg"
-            with open(thumbnail_path, "wb") as thumb_file:
-                thumb_file.write(thumb_response.content)
+                thumbnail_path = f"{os.path.splitext(file_path)[0]}_thumb.jpg"
+                with open(thumbnail_path, "wb") as thumb_file:
+                    thumb_file.write(thumb_response.content)
             logging.info(f"Thumbnail saved: {thumbnail_path}")
 
         await reply_msg.edit_text(f"✅ **Download Complete!**\n📽️ **Duration:** {video_duration}")
         return file_path, thumbnail_path, video_title, video_duration
 
     except Exception as e:
-        logging.error(f"Error: {e}")
+        logging.error(f"Error: {e}", exc_info=True)
         await reply_msg.reply_text(
             "⚠️ Download failed. Try again or use the manual link below.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Download Manually", url=url)]])
