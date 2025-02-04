@@ -35,7 +35,7 @@ COOKIE="PANWEB=1; csrfToken=tl2pqlIpZs-nq51FEEph_DW8; lang=en; TSID=3g9dXlXOottL
 #aria2 = aria2p.API(
     #aria2p.Client(
         #host="http://localhost",
-        #port=6800,
+        #port=9090,
         #secret=""
     #)
 #)
