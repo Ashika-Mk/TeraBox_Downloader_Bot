@@ -60,7 +60,7 @@ logging.basicConfig(
 
 # Initialize Aria2 RPC
 aria2 = aria2p.API(
-    aria2p.Client(host="http://localhost", port=9090, secret="")
+    aria2p.Client(host="http://localhost", port=9055, secret="")
 )
 
 # Apply global settings for max speed
