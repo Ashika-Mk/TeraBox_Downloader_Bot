@@ -39,7 +39,7 @@ async def download_video(url, reply_msg, user_mention, user_id):
         for attempt in range(3):  # Retry up to 3 times
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
+                    response = await client.get(f"https://mysticxapi.vercel.app/terabox?url={url}")
                     response.raise_for_status()
                     data = response.json()
                 break  # Exit loop if request is successful
@@ -50,7 +50,7 @@ async def download_video(url, reply_msg, user_mention, user_id):
             raise Exception("API request failed after multiple attempts.")
 
         # Validate API response
-        if "file_name" not in data or "direct_link" not in data:
+        if "category" not in data or "direct_link" not in data:
             raise Exception("Invalid API response format.")
 
         # Extract details
