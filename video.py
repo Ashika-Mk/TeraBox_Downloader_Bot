@@ -58,7 +58,7 @@ async def download_video(url, reply_msg, user_mention, user_id):
         download_link = data["downloadLink"]
         video_title = data["filename"]
         video_size_str = data.get("size", "0 MB")
-        video_size_bytes = int(data.get("size", "0").split(" ")[0]) * 1024 * 1024  # Convert MB to bytes
+        video_size_bytes = int(float(data.get("size", "0 MB").split(" ")[0]) * 1024 * 1024)  # Convert MB to bytes
         thumbnail_url = data.get("thumb")
         video_duration = data.get("time", "Unknown")
 
