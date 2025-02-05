@@ -31,6 +31,7 @@ from io import BytesIO
 import httpx
 
 
+
 async def download_video(url, reply_msg, user_mention, user_id):
     try:
         logging.info(f"Fetching video info: {url}")
@@ -43,24 +44,25 @@ async def download_video(url, reply_msg, user_mention, user_id):
                     response.raise_for_status()
                     data = response.json()
                 break  # Exit loop if request is successful
-            except httpx.ReadTimeout:
-                logging.warning(f"Attempt {attempt + 1}: API request timed out. Retrying...")
+            except (httpx.ReadTimeout, httpx.HTTPStatusError) as e:
+                logging.warning(f"Attempt {attempt + 1}: API request error: {e}. Retrying...")
                 await asyncio.sleep(5)  # Wait before retrying
         else:
             raise Exception("API request failed after multiple attempts.")
 
         # Validate API response
-        if "category" not in data or "direct_link" not in data:
+        if "downloadLink" not in data or "filename" not in data:
             raise Exception("Invalid API response format.")
 
         # Extract details
-        download_link = data["direct_link"]
-        video_title = data["file_name"]
-        video_size = data.get("sizebytes", 0)
+        download_link = data["downloadLink"]
+        video_title = data["filename"]
+        video_size_str = data.get("size", "0 MB")
+        video_size_bytes = int(data.get("size", "0").split(" ")[0]) * 1024 * 1024  # Convert MB to bytes
         thumbnail_url = data.get("thumb")
         video_duration = data.get("time", "Unknown")
 
-        logging.info(f"Downloading: {video_title} | Size: {video_size} bytes")
+        logging.info(f"Downloading: {video_title} | Size: {video_size_str}")
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -78,7 +80,7 @@ async def download_video(url, reply_msg, user_mention, user_id):
                     with open(file_path, "wb") as f:
                         async with client.stream("GET", download_link, headers=headers) as response:
                             response.raise_for_status()
-                            total_size = int(response.headers.get("content-length", 0))
+                            total_size = int(response.headers.get("content-length", video_size_bytes))
                             downloaded = 0
                             start_time = datetime.now()
                             last_percentage = 0
