@@ -31,7 +31,8 @@ from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
 
-async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8):
+
+async def download_video(url, reply_msg, user_mention, user_id, chunk_size=5 * 1024 * 1024):  # 5MB chunks
     try:
         logging.info(f"Fetching video info: {url}")
 
@@ -67,39 +68,38 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         if file_size == 0:
             raise Exception("Failed to get file size, download aborted.")
 
-        # Function to download a chunk
-        async def download_chunk(start, end, part_num):
+        # Track total downloaded bytes
+        total_downloaded = 0
+        last_progress = 0
+        start_time = datetime.now()
+
+        async with aio_open(file_path, "wb") as video_file:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                headers["Range"] = f"bytes={start}-{end}"
                 async with client.stream("GET", download_link, headers=headers) as response:
                     response.raise_for_status()
-                    async with aio_open(f"{file_path}.part{part_num}", "wb") as f:
-                        async for chunk in response.aiter_bytes():
-                            await f.write(chunk)
 
-        # Split file into chunks
-        chunk_tasks = []
-        chunk_size = min(chunk_size, file_size // max_workers)  # Adjust chunk size dynamically
+                    async for chunk in response.aiter_bytes(chunk_size):  # Download in chunks
+                        await video_file.write(chunk)
+                        total_downloaded += len(chunk)
 
-        for i in range(0, file_size, chunk_size):
-            start = i
-            end = min(i + chunk_size - 1, file_size - 1)
-            part_num = i // chunk_size
-            chunk_tasks.append(download_chunk(start, end, part_num))
+                        # Calculate progress
+                        progress = int((total_downloaded / file_size) * 100)
+                        elapsed_time = (datetime.now() - start_time).total_seconds()
+                        speed = (total_downloaded / (1024 * 1024)) / elapsed_time if elapsed_time > 0 else 0
 
-        # Download all chunks concurrently
-        await asyncio.gather(*chunk_tasks)
-
-        # Merge chunks
-        async with aio_open(file_path, "wb") as final_file:
-            for i in range(len(chunk_tasks)):
-                part_path = f"{file_path}.part{i}"
-                async with aio_open(part_path, "rb") as part_file:
-                    await final_file.write(await part_file.read())
-                os.remove(part_path)  # Delete part after merging
+                        # Update progress every 5%
+                        if progress >= last_progress + 5:
+                            progress_text = (
+                                f"📥 **Downloading:** {video_title}\n"
+                                f"📊 **Progress:** {progress}%\n"
+                                f"🚀 **Speed:** {speed:.2f} MB/s\n"
+                                f"⏳ **Elapsed:** {elapsed_time:.2f}s\n"
+                            )
+                            await reply_msg.edit_text(progress_text)
+                            last_progress = progress
 
         logging.info(f"Download complete: {file_path}")
-        await reply_msg.edit_text(f"✅ **Download Complete!**")
+        await reply_msg.edit_text(f"✅ **Download Complete!**\n🎥 You can now watch the video.")
 
         return file_path, None, video_title, None
 
