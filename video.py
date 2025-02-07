@@ -30,7 +30,6 @@ from pytz import timezone
 from io import BytesIO
 import httpx
 
-
 async def download_video(url, reply_msg, user_mention, user_id):
     try:
         logging.info(f"Fetching video info: {url}")
@@ -56,19 +55,18 @@ async def download_video(url, reply_msg, user_mention, user_id):
         # Extract details
         download_link = data["direct_link"]
         video_title = data["file_name"]
-        video_size = data.get("sizebytes", 0)
-        thumbnail_url = data.get("thumb")
-        video_duration = data.get("time", "Unknown")
 
-        logging.info(f"Downloading: {video_title} | Size: {video_size} bytes")
+        # Add a random query parameter to avoid caching
+        download_link += f"&random={random.randint(1000, 99999)}"
+
+        logging.info(f"Downloading: {video_title} | URL: {download_link}")
 
         headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Referer": "https://www.terabox.com/",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Connection": "keep-alive",
-    "Cookie": "PANWEB=1;browserid=DbGhIfUwCmz5pRL9tNJXj71VLCdZrMpJCpPmKGukZJeoKTWs9RGbALdghHUX9LKmR2YNgbW3uYThf_Qx; lang=en; TSID=fe2VGbjvZZ8mG6VoBnSOKa9tzuKhVwfm; __bid_n=194d786a6d8a0663344207; _ga=GA1.1.1902279557.1738782858; _gcl_au=1.1.955760083.1738782878; _fbp=fb.1.1738782878094.854442062512751170; _ga_RSNVN63CM3=GS1.1.1738782878.1.0.1738782882.56.0.0; csrfToken=rrRaANB6emff_Cw1hA9R3JY5; __stripe_mid=7ed47557-32aa-4096-ba79-c391f754e8b547445a;"
-}
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Referer": "https://www.terabox.com/",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Connection": "keep-alive",
+        }
 
         file_path = f"{video_title}"
 
@@ -111,22 +109,8 @@ async def download_video(url, reply_msg, user_mention, user_id):
 
         logging.info(f"Download complete: {file_path}")
 
-        # Download thumbnail if available
-        thumbnail_path = None
-        if thumbnail_url:
-            try:
-                async with httpx.AsyncClient(timeout=15.0) as client:
-                    thumb_response = await client.get(thumbnail_url)
-                    thumb_response.raise_for_status()
-                    thumbnail_path = f"{os.path.splitext(file_path)[0]}_thumb.jpg"
-                    with open(thumbnail_path, "wb") as thumb_file:
-                        thumb_file.write(thumb_response.content)
-                logging.info(f"Thumbnail saved: {thumbnail_path}")
-            except httpx.HTTPError as e:
-                logging.warning(f"Failed to download thumbnail: {e}")
-
-        await reply_msg.edit_text(f"✅ **Download Complete!**\n📽️ **Duration:** {video_duration}")
-        return file_path, thumbnail_path, video_title, video_duration
+        await reply_msg.edit_text(f"✅ **Download Complete!**")
+        return file_path, None, video_title, None
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
