@@ -49,6 +49,10 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
 
         # Extract details
         download_link = data["direct_link"]
+
+        # Add a random query parameter (1-10)
+        download_link += f"&random={random.randint(1, 10)}"
+
         video_title = data["file_name"]
         file_size = data.get("sizebytes", 0)
 
