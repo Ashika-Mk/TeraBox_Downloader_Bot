@@ -31,6 +31,7 @@ from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
 
+
 async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8):
     try:
         logging.info(f"Fetching video info: {url}")
@@ -48,6 +49,7 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         download_link = data["direct_link"]
         video_title = data["file_name"]
         file_size = data.get("sizebytes", 0)
+        thumb_url = data.get("thumb")  # Extract thumbnail URL
 
         # Add a random query parameter to bypass caching
         download_link += f"&random={random.randint(1, 10)}"
@@ -67,16 +69,32 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         if file_size == 0:
             raise Exception("Failed to get file size, download aborted.")
 
-        # Function to download a chunk
+        downloaded_size = 0  # Track the total downloaded size
+        last_update_time = time.time()  # Track last progress update time
+
+        # Function to download a chunk with progress tracking
         async def download_chunk(start, end, part_num):
+            nonlocal downloaded_size, last_update_time
+
             async with httpx.AsyncClient(timeout=60.0) as client:
                 headers["Range"] = f"bytes={start}-{end}"
                 async with client.stream("GET", download_link, headers=headers) as response:
                     response.raise_for_status()
                     part_filename = f"{file_path}.part{part_num}"
+                    
                     async with aio_open(part_filename, "wb") as f:
                         async for chunk in response.aiter_bytes():
                             await f.write(chunk)
+                            downloaded_size += len(chunk)
+
+                            # Send progress update every 5 seconds
+                            if time.time() - last_update_time > 5:
+                                progress_percent = (downloaded_size / file_size) * 100
+                                await reply_msg.edit_text(
+                                    f"📥 **Downloading:** {video_title}\n"
+                                    f"📊 Progress: `{progress_percent:.2f}%`"
+                                )
+                                last_update_time = time.time()
 
         # Split file into chunks
         chunk_tasks = []
@@ -102,9 +120,16 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
                 os.remove(part_path)  # Delete part after merging
 
         logging.info(f"Download complete: {file_path}")
-        await reply_msg.edit_text(f"✅ **Download Complete!**")
 
-        return file_path, None, video_title, None
+        # Send completion message with thumbnail
+        if thumb_url:
+            await reply_msg.edit_media(
+                media=InputMediaPhoto(media=thumb_url, caption=f"✅ **Download Complete!**\n📂 {video_title}")
+            )
+        else:
+            await reply_msg.edit_text(f"✅ **Download Complete!**\n📂 {video_title}")
+
+        return file_path, thumb_url, video_title, None
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
