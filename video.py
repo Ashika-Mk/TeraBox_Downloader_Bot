@@ -30,7 +30,7 @@ from pytz import timezone
 from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
-import aiohttp
+import aiohttp, aiofiles
 import mmap
 from shutil import which
 import subprocess
