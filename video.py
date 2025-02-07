@@ -35,8 +35,8 @@ from aiofiles import open as aio_open
 
 
 async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8): 
-    try: 
-        logging.info(f"Fetching video info: {url}")
+try: 
+    logging.info(f"Fetching video info: {url}")
 
 # Fetch video details
     async with httpx.AsyncClient(timeout=120.0) as client:
