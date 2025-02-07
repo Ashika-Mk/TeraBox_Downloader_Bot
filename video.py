@@ -31,7 +31,7 @@ from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
 
-async def download_video(url, reply_msg, user_mention, user_id, chunk_size=10 * 1024 * 1024, max_workers=8):
+async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8):
     try:
         logging.info(f"Fetching video info: {url}")
 
@@ -69,7 +69,7 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=10 * 
 
         # Function to download a chunk
         async def download_chunk(start, end, part_num):
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 headers["Range"] = f"bytes={start}-{end}"
                 async with client.stream("GET", download_link, headers=headers) as response:
                     response.raise_for_status()
