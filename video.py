@@ -31,7 +31,6 @@ from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
 
-
 async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8):
     try:
         logging.info(f"Fetching video info: {url}")
@@ -64,6 +63,18 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         }
 
         file_path = video_title
+        thumb_path = None  # Initialize thumbnail file path
+
+        # Download thumbnail if available
+        if thumb_url:
+            thumb_path = f"{video_title}.jpg"
+            async with httpx.AsyncClient() as client:
+                response = await client.get(thumb_url)
+                if response.status_code == 200:
+                    async with aio_open(thumb_path, "wb") as f:
+                        await f.write(response.content)
+                else:
+                    thumb_path = None  # Thumbnail download failed
 
         # Check file size
         if file_size == 0:
@@ -103,7 +114,8 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
                                         f"📥 **Downloading:** {video_title}\n"
                                         f"📊 Progress: `{(downloaded_size / file_size) * 100:.2f}%`\n"
                                         f"🚀 Speed: `{speed_str}`\n"
-                                        f"⏳ ETA: `{eta_str}`"
+                                        f"⏳ ETA: `{eta_str}`",
+                                        parse_mode=ParseMode.MARKDOWN
                                     )
                                     last_update_time = time.time()
                                     last_downloaded = 0  # Reset downloaded count
@@ -133,16 +145,10 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
 
         logging.info(f"Download complete: {file_path}")
 
-        # Send completion message with thumbnail (✅ Fixed!)
-        if thumb_url:
-            await reply_msg.edit_media(
-                media=InputMediaPhoto(media=thumb_url)  # Correct way to send an external image
-            )
-            await reply_msg.edit_caption(f"✅ **Download Complete!**\n📂 {video_title}")
-        else:
-            await reply_msg.edit_text(f"✅ **Download Complete!**\n📂 {video_title}")
+        # Send completion message
+        await reply_msg.edit_text(f"✅ **Download Complete!**\n📂 {video_title}")
 
-        return file_path, thumb_url, video_title, None
+        return file_path, thumb_path, video_title, None
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
