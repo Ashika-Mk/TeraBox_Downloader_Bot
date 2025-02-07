@@ -63,11 +63,12 @@ async def download_video(url, reply_msg, user_mention, user_id):
         logging.info(f"Downloading: {video_title} | Size: {video_size} bytes")
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://www.terabox.com/",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Connection": "keep-alive",
-        }
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://www.terabox.com/",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "keep-alive",
+    "Cookie": "PANWEB=1;browserid=DbGhIfUwCmz5pRL9tNJXj71VLCdZrMpJCpPmKGukZJeoKTWs9RGbALdghHUX9LKmR2YNgbW3uYThf_Qx; lang=en; TSID=fe2VGbjvZZ8mG6VoBnSOKa9tzuKhVwfm; __bid_n=194d786a6d8a0663344207; _ga=GA1.1.1902279557.1738782858; _gcl_au=1.1.955760083.1738782878; _fbp=fb.1.1738782878094.854442062512751170; _ga_RSNVN63CM3=GS1.1.1738782878.1.0.1738782882.56.0.0; csrfToken=rrRaANB6emff_Cw1hA9R3JY5; __stripe_mid=7ed47557-32aa-4096-ba79-c391f754e8b547445a;"
+}
 
         file_path = f"{video_title}"
 
