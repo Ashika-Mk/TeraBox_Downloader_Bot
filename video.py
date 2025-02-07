@@ -29,37 +29,30 @@ from datetime import datetime, timedelta
 from pytz import timezone
 from io import BytesIO
 import httpx
+from aiofiles import open as aio_open
 
-async def download_video(url, reply_msg, user_mention, user_id):
+async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=4):
     try:
         logging.info(f"Fetching video info: {url}")
 
-        # Fetch video details with retry logic
-        for attempt in range(3):  # Retry up to 3 times
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
-                    response.raise_for_status()
-                    data = response.json()
-                break  # Exit loop if request is successful
-            except httpx.ReadTimeout:
-                logging.warning(f"Attempt {attempt + 1}: API request timed out. Retrying...")
-                await asyncio.sleep(5)  # Wait before retrying
-        else:
-            raise Exception("API request failed after multiple attempts.")
+        # Fetch video details
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
+            response.raise_for_status()
+            data = response.json()
 
-        # Validate API response
         if "file_name" not in data or "direct_link" not in data:
             raise Exception("Invalid API response format.")
 
         # Extract details
         download_link = data["direct_link"]
         video_title = data["file_name"]
+        file_size = data.get("sizebytes", 0)
 
-        # Add a random query parameter to avoid caching
+        # Add a random query parameter to bypass caching
         download_link += f"&random={random.randint(1000, 99999)}"
 
-        logging.info(f"Downloading: {video_title} | URL: {download_link}")
+        logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -68,48 +61,46 @@ async def download_video(url, reply_msg, user_mention, user_id):
             "Connection": "keep-alive",
         }
 
-        file_path = f"{video_title}"
+        file_path = video_title
 
-        # Start video download with retry logic
-        for attempt in range(3):  # Retry up to 3 times
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    with open(file_path, "wb") as f:
-                        async with client.stream("GET", download_link, headers=headers) as response:
-                            response.raise_for_status()
-                            total_size = int(response.headers.get("content-length", 0))
-                            downloaded = 0
-                            start_time = datetime.now()
-                            last_percentage = 0
+        # Check file size
+        if file_size == 0:
+            raise Exception("Failed to get file size, download aborted.")
 
-                            async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
-                                f.write(chunk)
-                                downloaded += len(chunk)
+        # Function to download a chunk
+        async def download_chunk(start, end, part_num):
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                headers["Range"] = f"bytes={start}-{end}"
+                async with client.stream("GET", download_link, headers=headers) as response:
+                    response.raise_for_status()
+                    async with aio_open(f"{file_path}.part{part_num}", "wb") as f:
+                        async for chunk in response.aiter_bytes():
+                            await f.write(chunk)
 
-                                # Progress Update
-                                percentage = int((downloaded / total_size) * 100) if total_size else 0
-                                elapsed_time = (datetime.now() - start_time).total_seconds()
-                                speed = (downloaded / (1024 * 1024)) / elapsed_time if elapsed_time > 0 else 0
+        # Split file into chunks
+        chunk_tasks = []
+        chunk_size = min(chunk_size, file_size // max_workers)  # Adjust chunk size dynamically
 
-                                if percentage >= last_percentage + 2:
-                                    progress_text = (
-                                        f"📥 **Downloading:** {video_title}\n"
-                                        f"📊 **Progress:** {percentage}%\n"
-                                        f"🚀 **Speed:** {speed:.2f} MB/s\n"
-                                        f"⏳ **Elapsed:** {elapsed_time:.2f}s\n"
-                                    )
-                                    await reply_msg.edit_text(progress_text)
-                                    last_percentage = percentage
-                break  # Exit loop if download is successful
-            except httpx.ReadTimeout:
-                logging.warning(f"Attempt {attempt + 1}: Download request timed out. Retrying...")
-                await asyncio.sleep(5)  # Wait before retrying
-        else:
-            raise Exception("Video download failed after multiple attempts.")
+        for i in range(0, file_size, chunk_size):
+            start = i
+            end = min(i + chunk_size - 1, file_size - 1)
+            part_num = i // chunk_size
+            chunk_tasks.append(download_chunk(start, end, part_num))
+
+        # Download all chunks concurrently
+        await asyncio.gather(*chunk_tasks)
+
+        # Merge chunks
+        async with aio_open(file_path, "wb") as final_file:
+            for i in range(len(chunk_tasks)):
+                part_path = f"{file_path}.part{i}"
+                async with aio_open(part_path, "rb") as part_file:
+                    await final_file.write(await part_file.read())
+                os.remove(part_path)  # Delete part after merging
 
         logging.info(f"Download complete: {file_path}")
-
         await reply_msg.edit_text(f"✅ **Download Complete!**")
+
         return file_path, None, video_title, None
 
     except Exception as e:
