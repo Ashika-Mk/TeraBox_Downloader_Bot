@@ -36,7 +36,7 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
             response.raise_for_status()
             data = response.json()
@@ -90,7 +90,7 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
             nonlocal downloaded_size, last_update_time, last_downloaded
 
             async with semaphore:  # Limit concurrent downloads
-                async with httpx.AsyncClient(timeout=60.0) as client:
+                async with httpx.AsyncClient(timeout=120.0) as client:
                     headers["Range"] = f"bytes={start}-{end}"
                     async with client.stream("GET", download_link, headers=headers) as response:
                         response.raise_for_status()
