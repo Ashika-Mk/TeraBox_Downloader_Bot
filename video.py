@@ -198,7 +198,7 @@ async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg
         )
 
         # Prepare customized caption and buttons for the user's chat
-        original_caption = f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>","
+        original_caption = f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
         caption = f"{original_caption}" if HIDE_CAPTION else original_caption
 
         reply_markup = InlineKeyboardMarkup(
