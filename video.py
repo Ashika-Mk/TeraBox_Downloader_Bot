@@ -31,7 +31,7 @@ from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
 
-async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=2):
+async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8):
     try:
         logging.info(f"Fetching video info: {url}")
 
@@ -50,7 +50,7 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         file_size = data.get("sizebytes", 0)
 
         # Add a random query parameter to bypass caching
-        download_link += f"&random={random.randint(1000, 99999)}"
+        download_link += f"&random={random.randint(1, 10)}"
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
 
