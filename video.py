@@ -168,10 +168,10 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
-        await reply_msg.reply_text(
-            "⚠️ Download failed. Try again or use the manual link below.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Download Manually", url=url)]])
-        )
+        #await reply_msg.reply_text(
+            #"⚠️ Download failed. Try again or use the manual link below.",
+            #reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Download Manually", url=url)]])
+        #)
         return None, None, None, None
 
 
