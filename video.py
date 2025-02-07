@@ -175,93 +175,103 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         return None, None, None, None
 
 
+
+
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
-    file_size = os.path.getsize(file_path)
-    uploaded = 0
-    start_time = datetime.now()
-    last_update_time = time.time()
+    try:
+        file_size = os.path.getsize(file_path)
+        uploaded = 0
+        start_time = datetime.now()
+        last_update_time = time.time()
 
-    # Default initialization
-    AUTO_DEL = False
-    DEL_TIMER = 0
-    HIDE_CAPTION = False
-    CHNL_BTN = None
-    PROTECT_MODE = False
+        # Default settings
+        AUTO_DEL = DEL_TIMER = HIDE_CAPTION = CHNL_BTN = PROTECT_MODE = False
+        button_name = button_link = None
 
-    # Fetch configurations for auto-delete and other settings
-    AUTO_DEL, DEL_TIMER, HIDE_CAPTION, CHNL_BTN, PROTECT_MODE = await asyncio.gather(
-        db.get_auto_delete(), db.get_del_timer(), db.get_hide_caption(),
-        db.get_channel_button(), db.get_protect_content()
-    )
-
-    if CHNL_BTN:
-        button_name, button_link = await db.get_channel_button_link()
-
-    async def progress(current, total):
-        nonlocal uploaded, last_update_time
-        uploaded = current
-        percentage = (current / total) * 100
-        elapsed_time_seconds = (datetime.now() - start_time).total_seconds()
-
-        if time.time() - last_update_time > 2:
-            progress_text = format_progress_bar(
-                filename=video_title,
-                percentage=percentage,
-                done=current,
-                total_size=total,
-                status="Uploading",
-                eta=(total - current) / (current / elapsed_time_seconds) if current > 0 else 0,
-                speed=current / elapsed_time_seconds if current > 0 else 0,
-                elapsed=elapsed_time_seconds,
-                user_mention=user_mention,
-                user_id=user_id,
-                aria2p_gid=""
-            )
-            try:
-                await reply_msg.edit_text(progress_text)
-                last_update_time = time.time()
-            except Exception as e:
-                logging.warning(f"Error updating progress message: {e}")
-
-    with open(file_path, 'rb') as file:
-        # Upload the video to the database channel
-        collection_message = await client.send_video(
-            chat_id=db_channel_id,
-            video=file,
-            caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
-            thumb=thumbnail_path,
-            progress=progress
+        # Fetch configurations from DB
+        AUTO_DEL, DEL_TIMER, HIDE_CAPTION, CHNL_BTN, PROTECT_MODE = await asyncio.gather(
+            db.get_auto_delete(), db.get_del_timer(), db.get_hide_caption(),
+            db.get_channel_button(), db.get_protect_content()
         )
 
-        # Prepare customized caption and buttons for the user's chat
-        original_caption = f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
-        caption = f"{original_caption}" if HIDE_CAPTION else original_caption
+        if CHNL_BTN:
+            button_name, button_link = await db.get_channel_button_link()
 
-        reply_markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton(text=button_name, url=button_link)]]
-        ) if CHNL_BTN else None
+        async def progress(current, total):
+            nonlocal uploaded, last_update_time
+            uploaded = current
+            percentage = (current / total) * 100
+            elapsed_time_seconds = (datetime.now() - start_time).total_seconds()
 
-        # Send the uploaded video to the user's chat
-        copied_msg = await client.send_video(
+            if time.time() - last_update_time > 2:
+                progress_text = format_progress_bar(
+                    filename=video_title,
+                    percentage=percentage,
+                    done=current,
+                    total_size=total,
+                    status="Uploading",
+                    eta=(total - current) / (current / elapsed_time_seconds) if current > 0 else 0,
+                    speed=current / elapsed_time_seconds if current > 0 else 0,
+                    elapsed=elapsed_time_seconds,
+                    user_mention=user_mention,
+                    user_id=user_id,
+                    aria2p_gid=""
+                )
+                try:
+                    await reply_msg.edit_text(progress_text)
+                    last_update_time = time.time()
+                except Exception as e:
+                    logging.warning(f"Error updating progress message: {e}")
+
+        # **Upload video to the database channel**
+        with open(file_path, 'rb') as file:
+            collection_message = await client.send_video(
+                chat_id=db_channel_id,
+                video=file,
+                caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
+                thumb=thumbnail_path,
+                progress=progress
+            )
+
+        # **Copy the video from the DB channel to user (No forward header)**
+        copied_msg = await client.copy_message(
             chat_id=message.chat.id,
-            video=open(file_path, 'rb'),
+            from_chat_id=db_channel_id,
+            message_id=collection_message.id
+        )
+
+        # Prepare customized caption & buttons
+        original_caption = f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
+        caption = "" if HIDE_CAPTION else original_caption
+        reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=button_name, url=button_link)]]) if CHNL_BTN else None
+
+        # Edit caption of copied message
+        await copied_msg.edit_caption(
             caption=caption,
             parse_mode=ParseMode.HTML,
-            thumb=thumbnail_path,
-            reply_markup=reply_markup,
-            protect_content=PROTECT_MODE
+            reply_markup=reply_markup
         )
 
-        # Handle auto-delete for the user's chat
+        # Handle auto-delete
         if AUTO_DEL:
             asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
-        await message.delete()
+        # Clean up files and delete messages
+        os.remove(file_path)
+        if thumbnail_path:
+            os.remove(thumbnail_path)
 
-    await reply_msg.delete()
-    sticker_message = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
-    os.remove(file_path)
-    os.remove(thumbnail_path)
-    await asyncio.sleep(5)
-    await sticker_message.delete()
-    return collection_message.id
+        await message.delete()
+        await reply_msg.delete()
+
+        # Send sticker (Optional)
+        sticker_message = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
+        await asyncio.sleep(5)
+        await sticker_message.delete()
+
+        return collection_message.id
+
+    except Exception as e:
+        logging.error(f"Error during upload: {e}", exc_info=True)
+        await reply_msg.reply_text("⚠️ Upload failed. Please try again later.")
+        return None
