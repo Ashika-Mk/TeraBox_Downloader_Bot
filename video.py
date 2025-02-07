@@ -31,12 +31,12 @@ from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
 
-async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=4):
+async def download_video(url, reply_msg, user_mention, user_id, chunk_size=10 * 1024 * 1024, max_workers=4):
     try:
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
             response.raise_for_status()
             data = response.json()
