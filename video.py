@@ -13,7 +13,7 @@ import string as rohit
 import time
 from pyrogram import Client, filters, __version__
 from pyrogram.enums import ParseMode, ChatAction
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InputMediaPhoto
 from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
 from plugins.autoDelete import auto_del_notification, delete_message
 from bot import Bot
@@ -30,7 +30,6 @@ from pytz import timezone
 from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
-
 
 async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8):
     try:
@@ -71,30 +70,42 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
 
         downloaded_size = 0  # Track the total downloaded size
         last_update_time = time.time()  # Track last progress update time
+        last_downloaded = 0  # Track bytes downloaded since last update
+        semaphore = asyncio.Semaphore(max_workers)  # Limit concurrent tasks
 
         # Function to download a chunk with progress tracking
         async def download_chunk(start, end, part_num):
-            nonlocal downloaded_size, last_update_time
+            nonlocal downloaded_size, last_update_time, last_downloaded
 
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                headers["Range"] = f"bytes={start}-{end}"
-                async with client.stream("GET", download_link, headers=headers) as response:
-                    response.raise_for_status()
-                    part_filename = f"{file_path}.part{part_num}"
-                    
-                    async with aio_open(part_filename, "wb") as f:
-                        async for chunk in response.aiter_bytes():
-                            await f.write(chunk)
-                            downloaded_size += len(chunk)
+            async with semaphore:  # Limit concurrent downloads
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    headers["Range"] = f"bytes={start}-{end}"
+                    async with client.stream("GET", download_link, headers=headers) as response:
+                        response.raise_for_status()
+                        part_filename = f"{file_path}.part{part_num}"
+                        
+                        async with aio_open(part_filename, "wb") as f:
+                            async for chunk in response.aiter_bytes():
+                                await f.write(chunk)
+                                downloaded_size += len(chunk)
+                                last_downloaded += len(chunk)
 
-                            # Send progress update every 5 seconds
-                            if time.time() - last_update_time > 5:
-                                progress_percent = (downloaded_size / file_size) * 100
-                                await reply_msg.edit_text(
-                                    f"📥 **Downloading:** {video_title}\n"
-                                    f"📊 Progress: `{progress_percent:.2f}%`"
-                                )
-                                last_update_time = time.time()
+                                # Send progress update every 5 seconds
+                                if time.time() - last_update_time > 5:
+                                    speed = last_downloaded / (time.time() - last_update_time)  # Bytes per second
+                                    eta = (file_size - downloaded_size) / speed if speed > 0 else 0  # Estimated time remaining
+
+                                    speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                    eta_str = time.strftime("%M:%S", time.gmtime(eta))
+
+                                    await reply_msg.edit_text(
+                                        f"📥 **Downloading:** {video_title}\n"
+                                        f"📊 Progress: `{(downloaded_size / file_size) * 100:.2f}%`\n"
+                                        f"🚀 Speed: `{speed_str}`\n"
+                                        f"⏳ ETA: `{eta_str}`"
+                                    )
+                                    last_update_time = time.time()
+                                    last_downloaded = 0  # Reset downloaded count
 
         # Split file into chunks
         chunk_tasks = []
@@ -138,6 +149,7 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Download Manually", url=url)]])
         )
         return None, None, None, None
+
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     file_size = os.path.getsize(file_path)
