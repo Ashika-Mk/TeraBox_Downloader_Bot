@@ -31,6 +31,7 @@ from io import BytesIO
 import httpx
 from aiofiles import open as aio_open
 
+
 async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8):
     try:
         logging.info(f"Fetching video info: {url}")
@@ -132,11 +133,12 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
 
         logging.info(f"Download complete: {file_path}")
 
-        # Send completion message with thumbnail
+        # Send completion message with thumbnail (✅ Fixed!)
         if thumb_url:
             await reply_msg.edit_media(
-                media=InputMediaPhoto(media=thumb_url, caption=f"✅ **Download Complete!**\n📂 {video_title}")
+                media=InputMediaPhoto(media=thumb_url)  # Correct way to send an external image
             )
+            await reply_msg.edit_caption(f"✅ **Download Complete!**\n📂 {video_title}")
         else:
             await reply_msg.edit_text(f"✅ **Download Complete!**\n📂 {video_title}")
 
