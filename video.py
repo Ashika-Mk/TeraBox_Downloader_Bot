@@ -35,15 +35,16 @@ import mmap
 from shutil import which
 import subprocess
 
-async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8):
+async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=8, retries=2):
     try:
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.get(f"https://tbox-vids.vercel.app/api?data={url}")
-            response.raise_for_status()
-            data = response.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://tbox-vids.vercel.app/api?data={url}") as response:
+                if response.status != 200:
+                    raise Exception("Failed to fetch video details.")
+                data = await response.json()
 
         if "file_name" not in data or "direct_link" not in data:
             raise Exception("Invalid API response format.")
@@ -53,12 +54,12 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         video_title = data["file_name"]
         file_size = data.get("sizebytes", 0)
         thumb_url = data.get("thumb")
-        video_duration = data.get("duration", None)  # Extract duration if available
+        duration = data.get("duration", 0)  # Extract duration if available
 
         # Add a random query parameter to bypass caching
         download_link += f"&random={random.randint(1, 10)}"
 
-        logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
+        logging.info(f"Downloading: {video_title} | Size: {file_size} bytes | Duration: {duration}s")
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -73,107 +74,97 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         # Download thumbnail if available
         if thumb_url:
             thumb_path = f"{video_title}.jpg"
-            async with httpx.AsyncClient() as client:
-                response = await client.get(thumb_url)
-                if response.status_code == 200:
-                    async with aiofiles.open(thumb_path, "wb") as f:
-                        await f.write(response.content)
-                else:
-                    thumb_path = None  # Thumbnail download failed
+            async with aiohttp.ClientSession() as session:
+                async with session.get(thumb_url) as response:
+                    if response.status == 200:
+                        async with aiofiles.open(thumb_path, "wb") as f:
+                            await f.write(await response.read())
+                    else:
+                        thumb_path = None  # Thumbnail download failed
 
         if file_size == 0:
             raise Exception("Failed to get file size, download aborted.")
 
-        # First attempt: Use aria2c for high-speed download
-        aria2_file_path = f"{file_path}.aria2"
-        aria2_cmd = [
-            "aria2c", "--continue=true", "--max-connection-per-server=16", "--split=16",
-            "--min-split-size=10M", "--file-allocation=none", "--dir=.", "--out", file_path, download_link
-        ]
+        downloaded_size = 0
+        last_update_time = time.time()
+        last_downloaded = 0
+        semaphore = asyncio.Semaphore(max_workers)
 
-        logging.info(f"Starting download with aria2c: {file_path}")
-        process = await asyncio.create_subprocess_exec(*aria2_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = await process.communicate()
+        # Function to download a chunk with progress tracking
+        async def download_chunk(start, end, part_num):
+            nonlocal downloaded_size, last_update_time, last_downloaded
 
-        # Check if aria2c succeeded
-        if process.returncode == 0 and os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            logging.info(f"Aria2c download complete: {file_path}")
-        else:
-            logging.warning(f"Aria2c failed or empty file: {stderr.decode()}")
+            async with semaphore:
+                async with aiohttp.ClientSession() as session:
+                    headers["Range"] = f"bytes={start}-{end}"
+                    async with session.get(download_link, headers=headers) as response:
+                        if response.status not in [200, 206]:
+                            raise Exception(f"Failed to download chunk {part_num}. HTTP {response.status}")
 
-            # Fall back to aiohttp streaming
-            downloaded_size = 0
-            last_update_time = time.time()
-            last_downloaded = 0
-            semaphore = asyncio.Semaphore(max_workers)
+                        part_filename = f"{file_path}.part{part_num}"
+                        async with aiofiles.open(part_filename, "wb") as f:
+                            async for chunk in response.content.iter_any():
+                                await f.write(chunk)
+                                downloaded_size += len(chunk)
+                                last_downloaded += len(chunk)
 
-            async def download_chunk(start, end, part_num):
-                nonlocal downloaded_size, last_update_time, last_downloaded
+                                # Update progress every 5 seconds
+                                if time.time() - last_update_time > 5:
+                                    speed = last_downloaded / (time.time() - last_update_time)
+                                    eta = (file_size - downloaded_size) / speed if speed > 0 else 0
 
-                async with semaphore:
-                    async with aiohttp.ClientSession() as session:
-                        headers["Range"] = f"bytes={start}-{end}"
-                        async with session.get(download_link, headers=headers) as response:
-                            if response.status != 206 and response.status != 200:
-                                raise Exception(f"HTTP Error {response.status} for chunk {part_num}")
+                                    speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                    eta_str = time.strftime("%M:%S", time.gmtime(eta))
 
-                            part_filename = f"{file_path}.part{part_num}"
-                            async with aiofiles.open(part_filename, "wb") as f:
-                                async for chunk in response.content.iter_chunked(1024 * 512):
-                                    await f.write(chunk)
-                                    downloaded_size += len(chunk)
-                                    last_downloaded += len(chunk)
+                                    await reply_msg.edit_text(
+                                        f"📥 **Downloading:** {video_title}\n"
+                                        f"📊 Progress: `{(downloaded_size / file_size) * 100:.2f}%`\n"
+                                        f"🚀 Speed: `{speed_str}`\n"
+                                        f"⏳ ETA: `{eta_str}`",
+                                        parse_mode=ParseMode.MARKDOWN
+                                    )
+                                    last_update_time = time.time()
+                                    last_downloaded = 0
 
-                                    # Update progress every 5 seconds
-                                    if time.time() - last_update_time > 5:
-                                        speed = last_downloaded / (time.time() - last_update_time)
-                                        eta = (file_size - downloaded_size) / speed if speed > 0 else 0
+        # Split file into chunks
+        chunk_tasks = []
+        chunk_size = min(chunk_size, file_size // max_workers)
+        num_parts = 0
 
-                                        speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
-                                        eta_str = time.strftime("%M:%S", time.gmtime(eta))
+        for i in range(0, file_size, chunk_size):
+            start = i
+            end = min(i + chunk_size - 1, file_size - 1)
+            chunk_tasks.append(download_chunk(start, end, num_parts))
+            num_parts += 1
 
-                                        await reply_msg.edit_text(
-                                            f"📥 **Downloading:** {video_title}\n"
-                                            f"📊 Progress: `{(downloaded_size / file_size) * 100:.2f}%`\n"
-                                            f"🚀 Speed: `{speed_str}`\n"
-                                            f"⏳ ETA: `{eta_str}`",
-                                            parse_mode=ParseMode.MARKDOWN
-                                        )
-                                        last_update_time = time.time()
-                                        last_downloaded = 0
+        # Download all chunks concurrently
+        await asyncio.gather(*chunk_tasks)
 
-            # Create chunk download tasks
-            chunk_tasks = []
-            chunk_size = min(chunk_size, file_size // max_workers)
-            num_parts = 0
+        # Merge chunks
+        chunk_files = sorted([f"{file_path}.part{i}" for i in range(num_parts)], key=lambda x: int(x.split("part")[-1]))
 
-            for i in range(0, file_size, chunk_size):
-                start = i
-                end = min(i + chunk_size - 1, file_size - 1)
-                chunk_tasks.append(download_chunk(start, end, num_parts))
-                num_parts += 1
-
-            # Download all chunks concurrently
-            await asyncio.gather(*chunk_tasks)
-
-            # Merge chunks
-            async with aiofiles.open(file_path, "wb") as final_file:
-                for i in range(num_parts):
-                    part_path = f"{file_path}.part{i}"
-                    async with aiofiles.open(part_path, "rb") as part_file:
-                        await final_file.write(await part_file.read())
-                    os.remove(part_path)
-
-        # Final file integrity check
-        if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-            raise Exception("Download failed: File is empty after retries.")
+        async with aiofiles.open(file_path, "wb") as final_file:
+            for part_path in chunk_files:
+                async with aiofiles.open(part_path, "rb") as part_file:
+                    await final_file.write(await part_file.read())
+                os.remove(part_path)
 
         logging.info(f"Download complete: {file_path}")
+
+        # Validate file size
+        actual_size = os.path.getsize(file_path)
+        if actual_size == 0 and retries > 0:
+            logging.warning(f"Download resulted in empty file. Retrying... ({retries} attempts left)")
+            return await download_video(url, reply_msg, user_mention, user_id, chunk_size, max_workers, retries - 1)
+
+        if actual_size < file_size * 0.9 and retries > 0:
+            logging.warning(f"Downloaded file is too small. Retrying... ({retries} attempts left)")
+            return await download_video(url, reply_msg, user_mention, user_id, chunk_size, max_workers, retries - 1)
 
         # Send completion message
         await reply_msg.edit_text(f"✅ **Download Complete!**\n📂 {video_title}")
 
-        return file_path, thumb_path, video_title, video_duration
+        return file_path, thumb_path, video_title, duration
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
