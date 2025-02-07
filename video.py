@@ -73,27 +73,30 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
                 headers["Range"] = f"bytes={start}-{end}"
                 async with client.stream("GET", download_link, headers=headers) as response:
                     response.raise_for_status()
-                    async with aio_open(f"{file_path}.part{part_num}", "wb") as f:
+                    part_filename = f"{file_path}.part{part_num}"
+                    async with aio_open(part_filename, "wb") as f:
                         async for chunk in response.aiter_bytes():
                             await f.write(chunk)
 
         # Split file into chunks
         chunk_tasks = []
         chunk_size = min(chunk_size, file_size // max_workers)  # Adjust chunk size dynamically
+        num_parts = 0
 
         for i in range(0, file_size, chunk_size):
             start = i
             end = min(i + chunk_size - 1, file_size - 1)
-            part_num = i // chunk_size
-            chunk_tasks.append(download_chunk(start, end, part_num))
+            chunk_tasks.append(download_chunk(start, end, num_parts))
+            num_parts += 1
 
         # Download all chunks concurrently
         await asyncio.gather(*chunk_tasks)
 
-        # Merge chunks
+        # Merge chunks in correct order
+        chunk_files = sorted([f"{file_path}.part{i}" for i in range(num_parts)], key=lambda x: int(x.split("part")[-1]))
+
         async with aio_open(file_path, "wb") as final_file:
-            for i in range(len(chunk_tasks)):
-                part_path = f"{file_path}.part{i}"
+            for part_path in chunk_files:
                 async with aio_open(part_path, "rb") as part_file:
                     await final_file.write(await part_file.read())
                 os.remove(part_path)  # Delete part after merging
