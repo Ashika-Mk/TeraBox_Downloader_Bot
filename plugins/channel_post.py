@@ -95,10 +95,9 @@ async def handle_message(client: Client, message: Message):
 
     try:
         response = await client.listen(chat_id=message.chat.id, filters=filters.text)
-        terabox_link = response.text.strip()
-
-        if any(domain in terabox_link for domain in valid_domains):
-            await response.reply_text("✅ Valid link received! Processing...")
+        terabox_link = message.text.strip()
+        if not any(domain in terabox_link for domain in valid_domains):
+            return #await message.reply("⚠️ Please send a valid TeraBox link.")
         else:
             return
     except TimeoutError:
