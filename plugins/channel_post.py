@@ -130,13 +130,19 @@ async def handle_message(client: Client, message: Message):
 
     # **Free Usage Check**
     elif free_enabled:
+
         if free_count < free_limit:
-            await db.update_free_usage(user_id)
-            remaining_attempts = free_limit - free_count - 1
-            free_msg = await message.reply(f"✅ Processing as a free user...\n🔄 Remaining attempts: {remaining_attempts}")
+            await db.update_free_usage(user_id)  # Increment usage count
+            remaining_attempts = free_limit - free_count - 1  # Update remaining count
+        
+            free_msg = await message.reply(
+                f"✅ Processing as a free user...\n🔄 Remaining attempts: {remaining_attempts}"
+            )
 
             try:
-                file_path, thumbnail_path, video_title, video_duration = await download_video(message_text, reply_msg, user_mention, user_id)
+                file_path, thumbnail_path, video_title, video_duration = await download_video(
+                    message_text, reply_msg, user_mention, user_id
+                )
 
                 if file_path is None:
                     return await reply_msg.edit_text("Failed to download. The link may be broken.")
@@ -146,6 +152,12 @@ async def handle_message(client: Client, message: Message):
             except Exception as e:
                 logging.error(f"Download error: {e}")
                 return await reply_msg.edit_text("❌ API returned a broken link.")
+
+        else:
+            return await message.reply(
+                "⚠️ Free limit exceeded. Please purchase premium.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
+            )
 
         # **Free limit reached cases**
         elif not verify_status['is_verified']:  
