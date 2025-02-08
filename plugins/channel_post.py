@@ -36,7 +36,7 @@ db_channel_id=CHANNEL_ID
     'admin_list', 'cancel', 'auto_del', 'forcesub', 'files', 'add_banuser', 'token', 'del_banuser', 'banuser_list', 
     'status', 'req_fsub', 'myplan', 'short', 'check', 'free', 'set_free_limit', 'download', 'rohit']))
 
-@Bot.on_message(filters.command("download") & filters.private)
+#@Bot.on_message(filters.command("download") & filters.private)
 async def handle_download_command(client: Client, message: Message):
     user_id = message.from_user.id
     user_mention = message.from_user.mention
@@ -97,9 +97,9 @@ async def handle_download_command(client: Client, message: Message):
             return
 
     # Ask for a valid TeraBox link
-    await message.reply_text(
-        "ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴛᴇʀᴀʙᴏx ʟɪɴᴋ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs."
-    )
+    #await message.reply_text(
+        #"ᴘʟᴇᴀsᴇ sᴇɴᴅ ᴀ ᴠᴀʟɪᴅ ᴛᴇʀᴀʙᴏx ʟɪɴᴋ ᴡɪᴛʜɪɴ 30 sᴇᴄᴏɴᴅs."
+    #)
 
     valid_domains = [
         'terabox.com', 'nephobox.com', '4funbox.com', 'mirrobox.com',
@@ -108,12 +108,12 @@ async def handle_download_command(client: Client, message: Message):
         'teraboxlink.com', 'terafileshare.com'
     ]
 
-    try:
+    #try:
         # Wait for the user to send a valid link within 30 seconds
         response = await client.listen(
             chat_id=message.chat.id,
-            filters=filters.text,
-            timeout=30
+            filters=filters.text#,
+            #timeout=30
         )
         terabox_link = response.text.strip()
 
@@ -122,12 +122,13 @@ async def handle_download_command(client: Client, message: Message):
             await response.reply_text("ᴠᴀʟɪᴅ ʟɪɴᴋ ʀᴇᴄᴇɪᴠᴇᴅ! ᴘʀᴏᴄᴇssɪɴɢ...")
             # Proceed with further actions (e.g., downloading the link content)
         else:
-            await response.reply_text("ᴛʜᴀᴛ's ɴᴏᴛ ᴀ ᴠᴀʟɪᴅ ᴛᴇʀᴀʙᴏx ʟɪɴᴋ.")
-    except TimeoutError:
-        await message.reply_text("⏰ ᴛɪᴍᴇᴏᴜᴛ! ʏᴏᴜ ᴅɪᴅ ɴᴏᴛ sᴇɴᴅ ᴀ ʟɪɴᴋ ɪɴ ᴛɪᴍᴇ.")
+            return
+            #await response.reply_text("ᴛʜᴀᴛ's ɴᴏᴛ ᴀ ᴠᴀʟɪᴅ ᴛᴇʀᴀʙᴏx ʟɪɴᴋ.")
+    #except TimeoutError:
+        #await message.reply_text("⏰ ᴛɪᴍᴇᴏᴜᴛ! ʏᴏᴜ ᴅɪᴅ ɴᴏᴛ sᴇɴᴅ ᴀ ʟɪɴᴋ ɪɴ ᴛɪᴍᴇ.")
 
     # Send an initial message to the user, which will be updated later
-    reply_msg = await message.reply_text("🔄 **Processing your link, please wait...**")
+    reply_msg = await message.reply_text("🔄 Processing your link, please wait...")
 
     # Handle premium users
     if is_premium:
@@ -147,7 +148,7 @@ async def handle_download_command(client: Client, message: Message):
 
         except Exception as e:
             logging.error(f"Error handling message: {e}")
-            await reply_msg.edit_text("❌ **Api has given a broken download link. Please don't contact the owner for this issue.**")
+            await reply_msg.edit_text("❌ Api has given a broken download link. Please don't contact the owner for this issue.")
             return
 
     # Handle verified users
@@ -168,21 +169,21 @@ async def handle_download_command(client: Client, message: Message):
 
         except Exception as e:
             logging.error(f"Error handling message: {e}")
-            await reply_msg.edit_text("❌ **Api has given a broken download link. Please don't contact the owner for this issue.**")
+            await reply_msg.edit_text("❌ Api has given a broken download link. Please don't contact the owner for this issue.")
             return
 
 
-    if not shortener_url or not shortener_api or not is_premium:
+    #if not shortener_url or not shortener_api or not is_premium:
 
-        await message.reply(
-            "⚠️ Your 1 limit has expired.**\n\n"
-            "Please purchase premium access to continue using the bot.\n\n"
-            "Contact @rohit_1888 to upgrade.",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]]
-            )
-        )
-        return
+        #await message.reply(
+           # "⚠️ Your 1 limit has expired.**\n\n"
+            #"Please purchase premium access to continue using the bot.\n\n"
+            #"Contact @rohit_1888 to upgrade.",
+            #reply_markup=InlineKeyboardMarkup(
+                #[[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]]
+            #)
+        #)
+        #return
 
     if free_enabled and not is_premium and not shortener_url and not shortener_api:
         free_count = await db.check_free_usage(user_id)
