@@ -89,56 +89,49 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
         last_update_time = time.time()
         last_downloaded = 0
         semaphore = asyncio.Semaphore(max_workers)
+        progress_reached_100 = False
 
-        # Function to download a chunk with retry logic
-        async def download_chunk(start, end, part_num, retries=3):
-            nonlocal downloaded_size, last_update_time, last_downloaded
+        # Function to download a chunk
+        async def download_chunk(start, end, part_num):
+            nonlocal downloaded_size, last_update_time, last_downloaded, progress_reached_100
             part_filename = f"{file_path}.part{part_num}"
 
-            for attempt in range(retries + 1):
-                try:
-                    async with semaphore:
-                        async with aiohttp.ClientSession() as session:
-                            headers["Range"] = f"bytes={start}-{end}"
-                            async with session.get(download_link, headers=headers, timeout=180) as response:
-                                if response.status not in [200, 206]:
-                                    raise Exception(f"Chunk {part_num} failed with status {response.status}")
+            async with semaphore:
+                async with aiohttp.ClientSession() as session:
+                    headers["Range"] = f"bytes={start}-{end}"
+                    async with session.get(download_link, headers=headers, timeout=180) as response:
+                        if response.status not in [200, 206]:
+                            logging.warning(f"Chunk {part_num} failed: HTTP {response.status}")
+                            return  # Skip chunk instead of retrying
 
-                                async with aiofiles.open(part_filename, "wb") as f:
-                                    async for chunk in response.content.iter_any():
-                                        await f.write(chunk)
-                                        downloaded_size += len(chunk)
-                                        last_downloaded += len(chunk)
+                        async with aiofiles.open(part_filename, "wb") as f:
+                            async for chunk in response.content.iter_any():
+                                await f.write(chunk)
+                                downloaded_size += len(chunk)
+                                last_downloaded += len(chunk)
 
-                                        # Update progress every 5 seconds
-                                        if time.time() - last_update_time > 5:
-                                            progress = (downloaded_size / file_size) * 100
-                                            if progress >= 100:
-                                                progress = 100  # Ensure it doesn't exceed 100%
+                                # Update progress every 5 seconds
+                                if time.time() - last_update_time > 5:
+                                    progress = (downloaded_size / file_size) * 100
+                                    if progress >= 100:
+                                        progress = 100
+                                        progress_reached_100 = True  # Mark as complete
 
-                                            speed = last_downloaded / (time.time() - last_update_time)
-                                            eta = (file_size - downloaded_size) / speed if speed > 0 else 0
+                                    speed = last_downloaded / (time.time() - last_update_time)
+                                    eta = (file_size - downloaded_size) / speed if speed > 0 else 0
 
-                                            speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
-                                            eta_str = time.strftime("%M:%S", time.gmtime(eta))
+                                    speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                    eta_str = time.strftime("%M:%S", time.gmtime(eta))
 
-                                            await reply_msg.edit_text(
-                                                f"📥 **Downloading:** {video_title}\n"
-                                                f"📊 Progress: `{progress:.2f}%`\n"
-                                                f"🚀 Speed: `{speed_str}`\n"
-                                                f"⏳ ETA: `{eta_str}`",
-                                                parse_mode=ParseMode.MARKDOWN
-                                            )
-                                            last_update_time = time.time()
-                                            last_downloaded = 0
-                    return  # If successful, exit loop
-                except asyncio.TimeoutError:
-                    logging.warning(f"Chunk {part_num} timed out (Attempt {attempt + 1}/{retries})")
-                except Exception as e:
-                    logging.warning(f"Chunk {part_num} failed: {e} (Attempt {attempt + 1}/{retries})")
-                await asyncio.sleep(5)  # Wait before retrying
-
-            raise Exception(f"Chunk {part_num} failed after {retries} attempts.")
+                                    await reply_msg.edit_text(
+                                        f"📥 Downloading: {video_title}\n"
+                                        f"📊 Progress: `{progress:.2f}%`\n"
+                                        f"🚀 Speed: `{speed_str}`\n"
+                                        f"⏳ ETA: `{eta_str}`",
+                                        parse_mode=ParseMode.MARKDOWN
+                                    )
+                                    last_update_time = time.time()
+                                    last_downloaded = 0
 
         # Split file into chunks
         chunk_tasks = []
@@ -151,21 +144,26 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 
             chunk_tasks.append(download_chunk(start, end, num_parts))
             num_parts += 1
 
-        # Download all chunks concurrently
+        # Start downloading
         await asyncio.gather(*chunk_tasks)
 
-        # Merge chunks
+        # If progress reached 100%, stop all downloads
+        if progress_reached_100:
+            logging.info("Download reached 100%, proceeding to merge.")
+        
+        # Merge whatever chunks are available
         async with aiofiles.open(file_path, "wb") as final_file:
             for part_num in range(num_parts):
                 part_filename = f"{file_path}.part{part_num}"
-                async with aiofiles.open(part_filename, "rb") as part_file:
-                    await final_file.write(await part_file.read())
-                os.remove(part_filename)
+                if os.path.exists(part_filename):
+                    async with aiofiles.open(part_filename, "rb") as part_file:
+                        await final_file.write(await part_file.read())
+                    os.remove(part_filename)
 
         logging.info(f"Download complete: {file_path}")
 
         # Send completion message
-        await reply_msg.edit_text(f"✅ **Download Complete!**\n📂 {video_title}")
+        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
 
         return file_path, thumb_path, video_title, duration
 
