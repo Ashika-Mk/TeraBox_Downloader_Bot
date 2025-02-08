@@ -36,7 +36,7 @@ db_channel_id=CHANNEL_ID
     'admin_list', 'cancel', 'auto_del', 'forcesub', 'files', 'add_banuser', 'token', 'del_banuser', 'banuser_list', 
     'status', 'req_fsub', 'myplan', 'short', 'check', 'free', 'set_free_limit', 'download', 'rohit']))
 
-@Bot.on_message(filters.text & subscribed)
+@Bot.on_message(filters.command & subscribed)
 async def handle_download_command(client: Client, message: Message):
     user_id = message.from_user.id
     user_mention = message.from_user.mention
