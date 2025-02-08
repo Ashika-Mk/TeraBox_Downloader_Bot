@@ -63,7 +63,7 @@ async def start_command(client: Client, message: Message):
         await db.update_verify_status(user_id, is_verified=True, verified_time=time.time())
         if verify_status["link"] == "":
             await message.reply(
-                f"✅ **Your token has been successfully verified.**\n\n"
+                f"✅ Your token has been successfully verified.\n\n"
                 f"🔑 Valid for: {get_exp_time(VERIFY_EXPIRE)}.",
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton("BUY PREMIUM", callback_data="buy_prem")]]
