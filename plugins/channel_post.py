@@ -185,7 +185,7 @@ async def handle_message(client: Client, message: Message):
                         protect_content=False
                     )
 
-            elif not shortener_api or not shortener_url:
+            elif not shortener_api or not shortener_url or is_verified_recently:
     # **If no shortener API is available → Only show BUY PREMIUM**
                  return await message.reply(
                      "⚠️ Free limit exceeded. Please purchase premium.",
