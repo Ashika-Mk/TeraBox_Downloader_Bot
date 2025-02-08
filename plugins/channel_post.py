@@ -80,7 +80,7 @@ async def handle_download_command(client: Client, message: Message):
         await db.update_verification_time(user_id)
 
         return await message.reply(
-            f"✅ **Token successfully verified.**\n\n"
+            f"✅ Token successfully verified.\n\n"
             f"🔑 Valid for: {get_exp_time(VERIFY_EXPIRE)}.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("BUY PREMIUM", callback_data="buy_prem")]]),
             protect_content=False,
