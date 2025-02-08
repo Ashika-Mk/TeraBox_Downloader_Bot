@@ -34,7 +34,9 @@ db_channel_id=CHANNEL_ID
     'start', 'users', 'broadcast', 'stats', 'addpaid', 'removepaid', 'listpaid',
     'help', 'add_fsub', 'fsub_chnl', 'restart', 'del_fsub', 'add_admins', 'del_admins', 
     'admin_list', 'cancel', 'auto_del', 'forcesub', 'files', 'add_banuser', 'token', 'del_banuser', 'banuser_list', 
-    'status', 'req_fsub', 'myplan', 'short', 'check', 'free', 'set_free_limit']))
+    'status', 'req_fsub', 'myplan', 'short', 'check', 'free', 'set_free_limit', 'download']))
+
+@Bot.on_message(filters.command("download") & filters.private)
 async def handle_message(client: Client, message: Message):
     user_id = message.from_user.id
     user_mention = message.from_user.mention
