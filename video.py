@@ -166,7 +166,7 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 
         logging.info(f"Download complete: {file_path}")
 
         # Send completion message
-        await reply_msg.edit_text(f"✅ **Download Complete!**\n📂 {video_title}")
+        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
 
         return file_path, thumb_path, video_title, duration
 
