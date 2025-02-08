@@ -35,7 +35,8 @@ import mmap
 from shutil import which
 import subprocess
 
-async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 1024 * 1024, max_workers=4, retries=2):
+
+async def download_video(url, reply_msg, user_mention, user_id, chunk_size=50 * 1024 * 1024, max_workers=4, retries=2):
     try:
         logging.info(f"Fetching video info: {url}")
 
@@ -54,7 +55,7 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 
         video_title = data["file_name"]
         file_size = data.get("sizebytes", 0)
         thumb_url = data.get("thumb")
-        duration = data.get("duration", 0)  # Extract duration if available
+        duration = data.get("duration", 0)
 
         # Add a random query parameter to bypass caching
         download_link += f"&random={random.randint(1, 10)}"
@@ -90,41 +91,47 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 
         last_downloaded = 0
         semaphore = asyncio.Semaphore(max_workers)
 
-        # Function to download a chunk with progress tracking
-        async def download_chunk(start, end, part_num):
+        # Function to download a chunk with retries
+        async def download_chunk(start, end, part_num, retry_count=3):
             nonlocal downloaded_size, last_update_time, last_downloaded
+            part_filename = f"{file_path}.part{part_num}"
 
             async with semaphore:
-                async with aiohttp.ClientSession() as session:
-                    headers["Range"] = f"bytes={start}-{end}"
-                    async with session.get(download_link, headers=headers) as response:
-                        if response.status not in [200, 206]:
-                            raise Exception(f"Failed to download chunk {part_num}. HTTP {response.status}")
+                for attempt in range(retry_count):
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            headers["Range"] = f"bytes={start}-{end}"
+                            async with session.get(download_link, headers=headers, timeout=60) as response:
+                                if response.status not in [200, 206]:
+                                    raise Exception(f"Chunk {part_num} failed with status {response.status}")
 
-                        part_filename = f"{file_path}.part{part_num}"
-                        async with aiofiles.open(part_filename, "wb") as f:
-                            async for chunk in response.content.iter_any():
-                                await f.write(chunk)
-                                downloaded_size += len(chunk)
-                                last_downloaded += len(chunk)
+                                async with aiofiles.open(part_filename, "wb") as f:
+                                    async for chunk in response.content.iter_any():
+                                        await f.write(chunk)
+                                        downloaded_size += len(chunk)
+                                        last_downloaded += len(chunk)
 
-                                # Update progress every 5 seconds
-                                if time.time() - last_update_time > 5:
-                                    speed = last_downloaded / (time.time() - last_update_time)
-                                    eta = (file_size - downloaded_size) / speed if speed > 0 else 0
+                                        # Update progress every 5 seconds
+                                        if time.time() - last_update_time > 5:
+                                            speed = last_downloaded / (time.time() - last_update_time)
+                                            eta = (file_size - downloaded_size) / speed if speed > 0 else 0
 
-                                    speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
-                                    eta_str = time.strftime("%M:%S", time.gmtime(eta))
+                                            speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                            eta_str = time.strftime("%M:%S", time.gmtime(eta))
 
-                                    await reply_msg.edit_text(
-                                        f"📥 **Downloading:** {video_title}\n"
-                                        f"📊 Progress: `{(downloaded_size / file_size) * 100:.2f}%`\n"
-                                        f"🚀 Speed: `{speed_str}`\n"
-                                        f"⏳ ETA: `{eta_str}`",
-                                        parse_mode=ParseMode.MARKDOWN
-                                    )
-                                    last_update_time = time.time()
-                                    last_downloaded = 0
+                                            await reply_msg.edit_text(
+                                                f"📥 Downloading: {video_title}\n"
+                                                f"📊 Progress: `{(downloaded_size / file_size) * 100:.2f}%`\n"
+                                                f"🚀 Speed: `{speed_str}`\n"
+                                                f"⏳ ETA: `{eta_str}`",
+                                                parse_mode=ParseMode.MARKDOWN
+                                            )
+                                            last_update_time = time.time()
+                                            last_downloaded = 0
+                        break  # Success, exit loop
+                    except Exception as e:
+                        logging.warning(f"Retry {attempt+1}/{retry_count} for chunk {part_num}: {e}")
+                        await asyncio.sleep(2)  # Small delay before retry
 
         # Split file into chunks
         chunk_tasks = []
@@ -140,14 +147,20 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 
         # Download all chunks concurrently
         await asyncio.gather(*chunk_tasks)
 
-        # Merge chunks
-        chunk_files = sorted([f"{file_path}.part{i}" for i in range(num_parts)], key=lambda x: int(x.split("part")[-1]))
+        # Check for missing parts
+        missing_parts = [i for i in range(num_parts) if not os.path.exists(f"{file_path}.part{i}")]
+        if missing_parts:
+            logging.warning(f"Retrying missing chunks: {missing_parts}")
+            retry_tasks = [download_chunk(i * chunk_size, min((i + 1) * chunk_size - 1, file_size - 1), i) for i in missing_parts]
+            await asyncio.gather(*retry_tasks)
 
+        # Merge chunks
         async with aiofiles.open(file_path, "wb") as final_file:
-            for part_path in chunk_files:
-                async with aiofiles.open(part_path, "rb") as part_file:
+            for part_num in range(num_parts):
+                part_filename = f"{file_path}.part{part_num}"
+                async with aiofiles.open(part_filename, "rb") as part_file:
                     await final_file.write(await part_file.read())
-                os.remove(part_path)
+                os.remove(part_filename)
 
         logging.info(f"Download complete: {file_path}")
 
@@ -157,23 +170,18 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 
             logging.warning(f"Download resulted in empty file. Retrying... ({retries} attempts left)")
             return await download_video(url, reply_msg, user_mention, user_id, chunk_size, max_workers, retries - 1)
 
-        if actual_size < file_size * 0.9 and retries > 0:
+        if actual_size < file_size * 0.95 and retries > 0:
             logging.warning(f"Downloaded file is too small. Retrying... ({retries} attempts left)")
             return await download_video(url, reply_msg, user_mention, user_id, chunk_size, max_workers, retries - 1)
 
         # Send completion message
-        await reply_msg.edit_text(f"✅ **Download Complete!**\n📂 {video_title}")
+        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
 
         return file_path, thumb_path, video_title, duration
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
-        #await reply_msg.reply_text(
-            #"⚠️ Download failed. Try again or use the manual link below.",
-            #reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Download Manually", url=url)]])
-        #)
         return None, None, None, None
-
 
 
 
