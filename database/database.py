@@ -564,17 +564,18 @@ class Rohit:
     # **Check User's Free Usage**
     async def check_free_usage(self, user_id):
         try:
+        # Fetch user data from the database
             data = await self.free_data.find_one({"user_id": user_id})
+
             if not data:
-                return 0  # Default usage count is 0 if no record exists
+                return 0  # If no data exists, assume count is 0 (new user)
 
-            usage_count = int(data.get("count", 0))  
-            free_limit = await self.get_free_limit(user_id)
-
-            return usage_count < free_limit  # True if within limit, False otherwise
+        # Ensure the count is properly retrieved
+            usage_count = int(data.get("count", 0))  # Default to 0 if missing
+            return usage_count  # Return actual usage count
         except Exception as e:
             logging.error(f"Error checking free usage for user {user_id}: {e}")
-            return False  # Default to False to prevent abuse
+            return 0  # Default to 0 if an error occurs
 
     # **Get Free Limit**
     async def get_free_limit(self, user_id):
@@ -590,21 +591,28 @@ class Rohit:
     # **Update Free Usage Count**
     async def update_free_usage(self, user_id):
         try:
+        # Check if user exists in DB
             data = await self.free_data.find_one({"user_id": user_id})
 
             if not data:
+            # If user doesn't exist, create new entry with count = 1
                 await self.free_data.insert_one({"user_id": user_id, "count": 1, "last_reset": time.time()})
             else:
-                count = int(data.get("count", 0))
+            # Increment count properly
                 await self.free_data.update_one({"user_id": user_id}, {"$inc": {"count": 1}})
         except Exception as e:
             logging.error(f"Error incrementing free usage for user {user_id}: {e}")
 
     # **Reset Free Usage After 24 Hours**
     async def reset_free_usage(self, user_id):
-        data = await self.free_data.find_one({"user_id": user_id})
-        if data and time.time() - data.get("last_reset", 0) > 86400:
-            await self.free_data.update_one({"user_id": user_id}, {"$set": {"count": 0, "last_reset": time.time()}})
+        try:
+            data = await self.free_data.find_one({"user_id": user_id})
+            if data and (time.time() - data.get("last_reset", 0) > 86400):
+                await self.free_data.update_one(
+                {"user_id": user_id}, {"$set": {"count": 0, "last_reset": time.time()}}
+                )
+        except Exception as e:
+            logging.error(f"Error resetting free usage for user {user_id}: {e}")
 
     # **Update Verification Time**
     async def update_verification_time(self, user_id):
