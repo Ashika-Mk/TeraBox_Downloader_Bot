@@ -30,7 +30,7 @@ from pytz import timezone
 
 db_channel_id=CHANNEL_ID
 
-@Bot.on_message(filters.private & is_admin & ~filters.command([
+#@Bot.on_message(filters.private & is_admin & ~filters.command([
     'start', 'users', 'broadcast', 'stats', 'addpaid', 'removepaid', 'listpaid',
     'help', 'add_fsub', 'fsub_chnl', 'restart', 'del_fsub', 'add_admins', 'del_admins', 
     'admin_list', 'cancel', 'auto_del', 'forcesub', 'files', 'add_banuser', 'token', 'del_banuser', 'banuser_list', 
