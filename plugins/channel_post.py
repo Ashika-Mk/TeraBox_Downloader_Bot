@@ -153,12 +153,6 @@ async def handle_message(client: Client, message: Message):
                 logging.error(f"Download error: {e}")
                 return await reply_msg.edit_text("❌ API returned a broken link.")
 
-        #else:
-           # return await message.reply(
-               # "⚠️ Free limit exceeded. Please purchase premium.",
-                #reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
-            #)
-
         # **Free limit reached cases**
         elif not verify_status['is_verified']:  
             return await message.reply(
