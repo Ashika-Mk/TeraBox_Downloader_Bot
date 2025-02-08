@@ -59,8 +59,6 @@ async def handle_message(client: Client, message: Message):
     free_limit = await db.get_free_limit(user_id)
     free_enabled = await db.get_free_state(user_id)
     is_verified_recently = await db.was_verified_in_last_24hrs(user_id)
-    token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-
     free_count = await db.check_free_usage(user_id)
 
     # Expire verification if needed
@@ -134,7 +132,7 @@ async def handle_message(client: Client, message: Message):
         if free_count < free_limit:
             await db.update_free_usage(user_id)  # Increment usage count
             remaining_attempts = free_limit - free_count - 1  # Update remaining count
-        
+
             free_msg = await message.reply(
                 f"✅ Processing as a free user...\n🔄 Remaining attempts: {remaining_attempts}"
             )
@@ -154,15 +152,32 @@ async def handle_message(client: Client, message: Message):
                 return await reply_msg.edit_text("❌ API returned a broken link.")
 
         # **Free limit reached cases**
-        elif not verify_status['is_verified']:  
+        else:
+            # **If user is not verified or their verification expired**
+            if not verify_status['is_verified'] or (is_verified_recently and not verify_status['is_verified']):
+                token = ''.join(random.choices(rohit.ascii_letters + rohit.digits, k=10))
+                long_url = f"https://telegram.dog/{client.username}?start=verify_{token}"
+                short_link = await get_shortlink(long_url)
+                await db.update_verify_status(user_id, verify_token=token, verified_time=current_time, link="")
+
+                btn = [
+                    [InlineKeyboardButton("Click here", url=short_link),
+                     InlineKeyboardButton('How to verify', url=tut_vid_url)],
+                    [InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]
+                ]
+
+                return await message.reply(
+                    f"⚠️ Your free usage limit has been exceeded.\n\n"
+                    f"Please verify your token to continue.\n\n"
+                    f"Token Timeout: {get_exp_time(VERIFY_EXPIRE)}\n\n"
+                    f"🔑 What is the token?\n\n"
+                    f"By completing 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE)}.",
+                    reply_markup=InlineKeyboardMarkup(btn),
+                    protect_content=False
+                )
+
             return await message.reply(
                 "⚠️ Free limit exceeded. Please purchase premium.",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
-            )
-
-        elif is_verified_recently and not verify_status['is_verified']:
-            return await message.reply(
-                "⚠️ Your verification expired and free limit is reached. Upgrade to premium.",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
             )
 
