@@ -59,11 +59,8 @@ async def handle_message(client: Client, message: Message):
     free_limit = await db.get_free_limit(user_id)
     free_enabled = await db.get_free_state(user_id)
     is_verified_recently = await db.was_verified_in_last_24hrs(user_id)
-    token = ''.join(random.choices(rohit.ascii_letters + rohit.digits, k=10))
-    shortener_url = await db.get_shortener_url()
-    shortener_api = await db.get_shortener_api()
-    long_url = f"https://telegram.dog/{client.username}?start=verify_{token}"
-    tut_vid_url = await db.get_tut_video()
+    token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+
     free_count = await db.check_free_usage(user_id)
 
     # Expire verification if needed
@@ -116,7 +113,7 @@ async def handle_message(client: Client, message: Message):
             logging.error(f"Download error: {e}")
             return await reply_msg.edit_text("❌ API returned a broken link.")
 
-    # **Verified Free Users**
+    # **Verified Free Users (Still Valid)**
     elif verify_status['is_verified']:
         verified_msg = await message.reply("✅ Processing as a verified user...")
         try:
@@ -133,8 +130,6 @@ async def handle_message(client: Client, message: Message):
 
     # **Free Usage Check**
     elif free_enabled:
-        free_count = await db.check_free_usage(user_id)
-
         if free_count < free_limit:
             await db.update_free_usage(user_id)
             remaining_attempts = free_limit - free_count - 1
@@ -152,13 +147,20 @@ async def handle_message(client: Client, message: Message):
                 logging.error(f"Download error: {e}")
                 return await reply_msg.edit_text("❌ API returned a broken link.")
 
-        else:
+        # **Free limit reached cases**
+        elif not verify_status['is_verified']:  
             return await message.reply(
                 "⚠️ Free limit exceeded. Please purchase premium.",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
             )
 
-    # **Free Usage Disabled**
+        elif is_verified_recently and not verify_status['is_verified']:
+            return await message.reply(
+                "⚠️ Your verification expired and free limit is reached. Upgrade to premium.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
+            )
+
+    # **Free Usage Disabled & Token Expired/Disabled**
     else:
         return await message.reply(
             "⚠️ Free downloads are disabled. Please purchase premium.",
