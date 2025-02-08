@@ -647,17 +647,17 @@ class Rohit:
             await self.login_data.insert_one({"user_id": user_id, "free_state": state})
 
     # **Update Verification Status**
-    async def update_verify_status(self, user_id, is_verified=False, verify_token=None, verified_time=None):
-        update_data = {"is_verified": is_verified}
-        if verify_token is not None:
-            update_data["verify_token"] = verify_token
-        if verified_time is not None:
-            update_data["verified_time"] = verified_time
+    #async def update_verify_status(self, user_id, is_verified=False, verify_token=None, verified_time=None):
+        #update_data = {"is_verified": is_verified}
+        #if verify_token is not None:
+           # update_data["verify_token"] = verify_token
+        #if verified_time is not None:
+            #update_data["verified_time"] = verified_time
 
-        await self.for_data.update_one(
-            {"user_id": user_id},
-            {"$set": update_data},
-            upsert=True
-        )
+        #await self.for_data.update_one(
+            #{"user_id": user_id},
+            #{"$set": update_data},
+            #upsert=True
+        #)
 
 db = Rohit(DB_URI, DB_NAME)
