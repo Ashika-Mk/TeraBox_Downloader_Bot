@@ -35,6 +35,17 @@ db_channel_id=CHANNEL_ID
     'help', 'add_fsub', 'fsub_chnl', 'restart', 'del_fsub', 'add_admins', 'del_admins', 
     'admin_list', 'cancel', 'auto_del', 'forcesub', 'files', 'add_banuser', 'token', 'del_banuser', 'banuser_list', 
     'status', 'req_fsub', 'myplan', 'short', 'check', 'free', 'set_free_limit', 'download', 'rohit']))
+
+@Bot.on_message(filters.private & filters.text)
+async def check_activation(client: Client, message: Message):
+    # Define the trigger text
+    trigger_text = "Download video"
+
+    if message.text.strip().lower() == trigger_text.lower():
+        await message.reply("Send a valid TeraBox link to proceed.")
+        Bot.add_handler(handle_post)
+    else:
+        await handle_post(client, message)  # Continue processing if it's not the trigger message
 async def handle_post(client: Client, message: Message):
     user_id = message.from_user.id
     user_mention = message.from_user.mention
