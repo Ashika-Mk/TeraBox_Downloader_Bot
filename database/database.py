@@ -529,17 +529,16 @@ class Rohit:
         # Delete the document with the channel_id in store_reqLink_data
         await self.store_reqLink_data.delete_one({'_id': channel_id})
 
-    # Helper: Get free usage settings from the database
+    
+    # **Get Free Usage Settings**
     async def get_free_settings(self):
         settings = await self.free_data.find_one({"_id": "free_usage"})
         if not settings:
-        # Default settings if not present in the database
             settings = {"limit": 5, "enabled": True}
             await self.free_data.insert_one({"_id": "free_usage", **settings})
         return settings
 
-
-# Helper: Update free usage settings in the database
+    # **Update Free Usage Settings**
     async def update_free_settings(self, limit=None, enabled=None):
         updates = {}
         if limit is not None:
@@ -549,122 +548,108 @@ class Rohit:
         if updates:
             await self.free_data.update_one({"_id": "free_usage"}, {"$set": updates}, upsert=True)
 
+    # **Set Free Limit**
     async def set_free_limit(self, limit: int):
         try:
-            # Ensure the limit is an integer
-            limit = int(limit)
-            
-            # Update the limit in the database
-            result = await self.free_data.update_one(
-                {"_id": "limit"},  # Assuming there's an entry with this ID for settings
+            await self.free_data.update_one(
+                {"_id": "free_usage"},  # Standardized ID
                 {"$set": {"limit": limit}},
-                upsert=True  # Create the document if it doesn't exist
+                upsert=True
             )
-            return result.modified_count > 0  # Return True if the update was successful
+            return True
         except Exception as e:
             logging.error(f"Error updating limit: {e}")
             return False
 
-
-# Check user's free usage
+    # **Check User's Free Usage**
     async def check_free_usage(self, user_id):
         try:
-        # Fetch user data from the database
             data = await self.free_data.find_one({"user_id": user_id})
             if not data:
-                return True  # If no data exists, assume the user can proceed (default)
+                return 0  # Default usage count is 0 if no record exists
 
-        # Fetch the free usage limit
+            usage_count = int(data.get("count", 0))  
             free_limit = await self.get_free_limit(user_id)
-            if free_limit is None:
-                return True  # If limit is not set, allow usage
 
-        # Check if the user's count exceeds the free limit
-            usage_count = int(data.get("count", 0))  # Defaults to 0 if 'count' is missing or invalid
-            return usage_count < free_limit  # Return True if within limit, False otherwise
+            return usage_count < free_limit  # True if within limit, False otherwise
         except Exception as e:
             logging.error(f"Error checking free usage for user {user_id}: {e}")
-            return False  # Default to False in case of an error
+            return False  # Default to False to prevent abuse
 
-# Get the free usage limit
+    # **Get Free Limit**
     async def get_free_limit(self, user_id):
         try:
-        # Retrieve the settings document from the database
-            settings = await self.free_data.find_one({"_id": "limit"})
+            settings = await self.free_data.find_one({"_id": "free_usage"})  # Ensure correct _id
             if settings:
-            # Ensure the 'limit' field is an integer
-                return int(settings.get("limit", 0))  # Defaults to 0 if 'limit' is missing or invalid
+                return int(settings.get("limit", 5))  # Default to 5 if missing
             return None
         except Exception as e:
             logging.error(f"Error fetching limit: {e}")
             return None
 
+    # **Update Free Usage Count**
     async def update_free_usage(self, user_id):
         try:
-            # Fetch user data
             data = await self.free_data.find_one({"user_id": user_id})
 
-            # If data does not exist, create it with initial count
             if not data:
                 await self.free_data.insert_one({"user_id": user_id, "count": 1, "last_reset": time.time()})
             else:
-                # Ensure that 'count' is an integer and increment it
-                count = int(data.get("count", 0))  # Defaults to 0 if count is missing or invalid
+                count = int(data.get("count", 0))
                 await self.free_data.update_one({"user_id": user_id}, {"$inc": {"count": 1}})
         except Exception as e:
             logging.error(f"Error incrementing free usage for user {user_id}: {e}")
 
-
-# Helper: Reset free usage after 24 hours
+    # **Reset Free Usage After 24 Hours**
     async def reset_free_usage(self, user_id):
         data = await self.free_data.find_one({"user_id": user_id})
         if data and time.time() - data.get("last_reset", 0) > 86400:
             await self.free_data.update_one({"user_id": user_id}, {"$set": {"count": 0, "last_reset": time.time()}})
 
-    # Update verification time in the database
+    # **Update Verification Time**
     async def update_verification_time(self, user_id):
         data = await self.for_data.find_one({"user_id": user_id})
         if not data:
-        # If user does not exist in the database, create a new entry
             await self.for_data.insert_one({"user_id": user_id, "last_verified_time": time.time()})
         else:
-        # Update the last_verified_time for the existing user
             await self.for_data.update_one({"user_id": user_id}, {"$set": {"last_verified_time": time.time()}})
-        return True  # Always return True to indicate the operation was successful
+        return True  
 
-# Check if the user was verified in the last 24 hours
+    # **Check if User was Verified in Last 24 Hours**
     async def was_verified_in_last_24hrs(self, user_id):
         data = await self.for_data.find_one({"user_id": user_id})
         if not data or not data.get("last_verified_time"):
-        # Return False if the user is not in the database or doesn't have a last_verified_time
             return False
 
         last_verified_time = data["last_verified_time"]
-        return (time.time() - last_verified_time) < 86400  # Check if the last verification was within 24 hours
+        return (time.time() - last_verified_time) < 86400  # Within 24 hours
 
+    # **Get Free State**
     async def get_free_state(self, user_id):
         user_data = await self.login_data.find_one({"user_id": user_id})
-        if user_data:
-            return user_data.get("free_state", True)  # Default to True (enabled) if not found
-        return True  # Default to True if user data doesn't exist
+        return user_data.get("free_state", True) if user_data else True  
 
+    # **Set Free State**
     async def set_free_state(self, user_id, state):
         user_data = await self.login_data.find_one({"user_id": user_id})
 
         if user_data:
-            # Update the existing user document
-            await self.login_data.update_one(
-                {"user_id": user_id},
-                {"$set": {"free_state": state}}
-            )
+            await self.login_data.update_one({"user_id": user_id}, {"$set": {"free_state": state}})
         else:
-            # Insert a new user document if the user doesn't exist
-            await self.login_data.insert_one({
-                "user_id": user_id,
-                "free_state": state
-            })
+            await self.login_data.insert_one({"user_id": user_id, "free_state": state})
 
-    
+    # **Update Verification Status**
+    async def update_verify_status(self, user_id, is_verified=False, verify_token=None, verified_time=None):
+        update_data = {"is_verified": is_verified}
+        if verify_token is not None:
+            update_data["verify_token"] = verify_token
+        if verified_time is not None:
+            update_data["verified_time"] = verified_time
 
+        await self.for_data.update_one(
+            {"user_id": user_id},
+            {"$set": update_data},
+            upsert=True
+        )
 
 db = Rohit(DB_URI, DB_NAME)
