@@ -108,7 +108,7 @@ async def handle_download_command(client: Client, message: Message):
         'teraboxlink.com', 'terafileshare.com'
     ]
 
-    #try:
+    try:
         # Wait for the user to send a valid link within 30 seconds
         response = await client.listen(
             chat_id=message.chat.id,
