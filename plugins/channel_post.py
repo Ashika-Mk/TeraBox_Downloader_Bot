@@ -35,9 +35,7 @@ db_channel_id=CHANNEL_ID
     'help', 'add_fsub', 'fsub_chnl', 'restart', 'del_fsub', 'add_admins', 'del_admins', 
     'admin_list', 'cancel', 'auto_del', 'forcesub', 'files', 'add_banuser', 'token', 'del_banuser', 'banuser_list', 
     'status', 'req_fsub', 'myplan', 'short', 'check', 'free', 'set_free_limit', 'download', 'rohit']))
-
-@Bot.on_message(filters.private & subscribed & filters.text)
-async def channel_post(client: Client, message: Message):
+async def handle_post(client: Client, message: Message):
     user_id = message.from_user.id
     user_mention = message.from_user.mention
 
