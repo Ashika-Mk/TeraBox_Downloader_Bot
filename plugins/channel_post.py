@@ -30,17 +30,16 @@ from pytz import timezone
 
 db_channel_id=CHANNEL_ID
 
-
-@Bot.on_message(filters.private & is_admin & ~filters.command([
+@Bot.on_message(filters.private & ~filters.command([
     'start', 'users', 'broadcast', 'stats', 'addpaid', 'removepaid', 'listpaid',
     'help', 'add_fsub', 'fsub_chnl', 'restart', 'del_fsub', 'add_admins', 'del_admins', 
     'admin_list', 'cancel', 'auto_del', 'forcesub', 'files', 'add_banuser', 'token', 'del_banuser', 'banuser_list', 
     'status', 'req_fsub', 'myplan', 'short', 'check', 'free', 'set_free_limit', 'download', 'rohit']))
 
-
 async def handle_message(client: Client, message: Message):
     user_id = message.from_user.id
     user_mention = message.from_user.mention
+    message_text = message.text.strip() if message.text else ""
 
     # Ensure user exists in DB
     if not await db.present_user(user_id):
@@ -72,8 +71,8 @@ async def handle_message(client: Client, message: Message):
         await db.update_verify_status(user_id, is_verified=False)
 
     # Handle token verification
-    if "verify_" in message.text:
-        _, token = message.text.split("_", 1)
+    if message_text.startswith("verify_"):
+        _, token = message_text.split("_", 1)
         if verify_status['verify_token'] != token:
             return await message.reply("⚠️ Invalid or expired token. Please try again with /start.")
 
@@ -88,7 +87,7 @@ async def handle_message(client: Client, message: Message):
             quote=True
         )
 
-    # Request a valid TeraBox link
+    # **Check if the message is a valid TeraBox link**
     valid_domains = [
         'terabox.com', 'nephobox.com', '4funbox.com', 'mirrobox.com',
         'momerybox.com', 'teraboxapp.com', '1024tera.com',
@@ -96,23 +95,17 @@ async def handle_message(client: Client, message: Message):
         'teraboxlink.com', 'terafileshare.com'
     ]
 
-    try:
-        response = await client.listen(chat_id=message.chat.id, filters=filters.text)
-        terabox_link = message.text.strip()
-        if not any(domain in terabox_link for domain in valid_domains):
-            return #await message.reply("⚠️ Please send a valid TeraBox link.")
-        else:
-            return
-    except TimeoutError:
-        return #await message.reply_text("⏰ Timeout! No link received.")
+    if not any(domain in message_text for domain in valid_domains):
+        return await message.reply("⚠️ Please send a valid TeraBox link.")
 
+    # If a valid link is received, process it
     reply_msg = await message.reply_text("🔄 Processing your link, please wait...")
 
     # **Premium Users → Immediate Processing**
     if is_premium:
         premium_msg = await message.reply("✅ Processing as a premium user...")
         try:
-            file_path, thumbnail_path, video_title, video_duration = await download_video(terabox_link, reply_msg, user_mention, user_id)
+            file_path, thumbnail_path, video_title, video_duration = await download_video(message_text, reply_msg, user_mention, user_id)
 
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
@@ -127,7 +120,7 @@ async def handle_message(client: Client, message: Message):
     elif verify_status['is_verified']:
         verified_msg = await message.reply("✅ Processing as a verified user...")
         try:
-            file_path, thumbnail_path, video_title, video_duration = await download_video(terabox_link, reply_msg, user_mention, user_id)
+            file_path, thumbnail_path, video_title, video_duration = await download_video(message_text, reply_msg, user_mention, user_id)
 
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
@@ -143,13 +136,12 @@ async def handle_message(client: Client, message: Message):
         free_count = await db.check_free_usage(user_id)
 
         if free_count < free_limit:
-            # Allow free usage
             await db.update_free_usage(user_id)
             remaining_attempts = free_limit - free_count - 1
             free_msg = await message.reply(f"✅ Processing as a free user...\n🔄 Remaining attempts: {remaining_attempts}")
 
             try:
-                file_path, thumbnail_path, video_title, video_duration = await download_video(terabox_link, reply_msg, user_mention, user_id)
+                file_path, thumbnail_path, video_title, video_duration = await download_video(message_text, reply_msg, user_mention, user_id)
 
                 if file_path is None:
                     return await reply_msg.edit_text("Failed to download. The link may be broken.")
@@ -160,40 +152,15 @@ async def handle_message(client: Client, message: Message):
                 logging.error(f"Download error: {e}")
                 return await reply_msg.edit_text("❌ API returned a broken link.")
 
-        elif free_count >= free_limit:
-            if shortener_url and shortener_api:
-                if is_verified_recently:
-                    return await message.reply(
-                        "⚠️ Token expired. Please purchase premium.\nContact @rohit_1888 to upgrade.",
-                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
-                    )
-
-                # Generate new token
-                short_link = await get_shortlink(long_url)
-                await db.update_verify_status(user_id, verify_token=token, verified_time=current_time, link="")
-
-                btn = [
-                    [InlineKeyboardButton("Click here", url=short_link), InlineKeyboardButton('How to verify', url=tut_vid_url)],
-                    [InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]
-                ]
-
-                return await message.reply(
-                    f"⚠️ Free limit exceeded. Please verify your token to continue.\n\n"
-                    f"Token Timeout: {get_exp_time(VERIFY_EXPIRE)}\n\n"
-                    f"🔑 By completing 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE)}.",
-                    reply_markup=InlineKeyboardMarkup(btn),
-                    protect_content=False
-                )
-
-            else:
-                return await message.reply(
-                    "⚠️ Free limit expired. Purchase premium to continue.\nContact @rohit_1888 to upgrade.",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
-                )
+        else:
+            return await message.reply(
+                "⚠️ Free limit exceeded. Please purchase premium.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
+            )
 
     # **Free Usage Disabled**
     else:
         return await message.reply(
-            "⚠️ Free downloads are disabled. Please purchase premium.\nContact @rohit_1888 to upgrade.",
+            "⚠️ Free downloads are disabled. Please purchase premium.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
         )
