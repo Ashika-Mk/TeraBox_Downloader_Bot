@@ -102,7 +102,7 @@ async def channel_post(client: Client, message: Message):
         else:
             return
     except TimeoutError:
-        return await message.reply_text("⏰ Timeout! No link received.")
+        return #await message.reply_text("⏰ Timeout! No link received.")
 
     reply_msg = await message.reply_text("🔄 Processing your link, please wait...")
 
