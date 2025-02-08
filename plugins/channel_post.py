@@ -188,7 +188,7 @@ async def handle_message(client: Client, message: Message):
             elif not shortener_api or not shortener_url:
     # **If no shortener API is available → Only show BUY PREMIUM**
                  return await message.reply(
-                #"⚠️ Free limit exceeded. Please purchase premium.",
+                     "⚠️ Free limit exceeded. Please purchase premium.",
                  reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
              )
 
