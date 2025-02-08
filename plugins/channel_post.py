@@ -61,6 +61,8 @@ async def handle_message(client: Client, message: Message):
     is_verified_recently = await db.was_verified_in_last_24hrs(user_id)
     free_count = await db.check_free_usage(user_id)
     tut_vid_url = await db.get_tut_video()
+    shortener_url = await db.get_shortener_url()
+    shortener_api = await db.get_shortener_api()
 
     # Expire verification if needed
     if verify_status['is_verified'] and VERIFY_EXPIRE and VERIFY_EXPIRE < (time.time() - verify_status['verified_time']):
