@@ -485,8 +485,8 @@ async def toggle_freemode(client: Client, message: Message):
 
 @Bot.on_message(filters.command("stats") & is_admin)
 async def stats_command(client, message):
-    total_users = users_collection.count_documents({})
-    verified_users = users_collection.count_documents({"verify_status.is_verified": True})
+    total_users = db.full_userbase({})
+    verified_users = db.full_userbase({"verify_status.is_verified": True})
     unverified_users = total_users - verified_users
 
     free_settings = await db.get_free_settings()
