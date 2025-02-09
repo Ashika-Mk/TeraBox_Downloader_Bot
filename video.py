@@ -48,37 +48,36 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 
                     raise Exception("Failed to fetch video details.")
                 data = await response.json()
 
-        if "file_name" not in data or "direct_link" not in data:
-            raise Exception("Invalid API response format.")
+            if "file_name" not in data or "direct_link" not in data:
+                raise Exception("Invalid API response format.")
 
-        # Extract details
-        download_link = data["direct_link"]
-        video_title = data["file_name"]
-        file_size = data.get("sizebytes", 0)
-        thumb_url = data.get("thumb")
-        duration = data.get("duration", 0)
+            # Extract details
+            download_link = data["direct_link"]
+            video_title = data["file_name"]
+            file_size = data.get("sizebytes", 0)
+            thumb_url = data.get("thumb")
+            duration = data.get("duration", 0)
 
-        # Bypass caching with a random query parameter
-        download_link += f"&random={random.randint(1, 1000)}"
+            # Bypass caching with a random query parameter
+            download_link += f"&random={random.randint(1, 1000)}"
 
-        logging.info(f"Downloading: {video_title} | Size: {file_size} bytes | Duration: {duration}s")
+            logging.info(f"Downloading: {video_title} | Size: {file_size} bytes | Duration: {duration}s")
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Referer": "https://www.terabox.com/",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Connection": "keep-alive",
-            "Range": "bytes=0-",  # Support partial downloads
-            "Cache-Control": "no-cache",
-        }
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                "Referer": "https://www.terabox.com/",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Connection": "keep-alive",
+                "Range": "bytes=0-",  # Support partial downloads
+                "Cache-Control": "no-cache",
+            }
 
-        file_path = video_title
-        thumb_path = None
+            file_path = video_title
+            thumb_path = None
 
-        # Download thumbnail if available
-        if thumb_url:
-            thumb_path = f"{video_title}.jpg"
-            async with aiohttp.ClientSession() as session:
+            # Download thumbnail if available
+            if thumb_url:
+                thumb_path = f"{video_title}.jpg"
                 async with session.get(thumb_url) as response:
                     if response.status == 200:
                         async with aiofiles.open(thumb_path, "wb") as f:
@@ -86,23 +85,22 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 
                     else:
                         thumb_path = None  # Thumbnail download failed
 
-        if file_size == 0:
-            raise Exception("Failed to get file size, download aborted.")
+            if file_size == 0:
+                raise Exception("Failed to get file size, download aborted.")
 
-        downloaded_size = 0
-        last_update_time = time.time()
-        last_downloaded = 0
-        semaphore = asyncio.Semaphore(max_workers)
-        progress_reached_100 = False
+            downloaded_size = 0
+            last_update_time = time.time()
+            last_downloaded = 0
+            semaphore = asyncio.Semaphore(max_workers)
+            progress_reached_100 = False
 
-        # Function to download a chunk
-        async def download_chunk(start, end, part_num):
-            nonlocal downloaded_size, last_update_time, last_downloaded, progress_reached_100
-            part_filename = f"{file_path}.part{part_num}"
+            # Function to download a chunk
+            async def download_chunk(start, end, part_num, session):
+                nonlocal downloaded_size, last_update_time, last_downloaded, progress_reached_100
+                part_filename = f"{file_path}.part{part_num}"
 
-            async with semaphore:
-                try:
-                    async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+                async with semaphore:
+                    try:
                         headers["Range"] = f"bytes={start}-{end}"
                         async with session.get(download_link, headers=headers) as response:
                             if response.status not in [200, 206]:
@@ -138,48 +136,49 @@ async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 
 
                                         if progress >= 100:
                                             progress_reached_100 = True  # Mark as complete
-                except asyncio.TimeoutError:
-                    logging.error(f"Chunk {part_num} timed out. Retrying...")
-                    await asyncio.sleep(5)
-                    return await download_chunk(start, end, part_num)  # Retry chunk if timed out
+                    except asyncio.TimeoutError:
+                        logging.error(f"Chunk {part_num} timed out. Retrying...")
+                        await asyncio.sleep(5)
+                        return await download_chunk(start, end, part_num, session)  # Retry chunk if timed out
 
-        # Split file into chunks
-        chunk_tasks = []
-        chunk_size = min(chunk_size, file_size // max_workers)
-        num_parts = 0
+            # Split file into chunks
+            chunk_tasks = []
+            chunk_size = min(chunk_size, file_size // max_workers)
+            num_parts = 0
 
-        for i in range(0, file_size, chunk_size):
-            start = i
-            end = min(i + chunk_size - 1, file_size - 1)
-            chunk_tasks.append(download_chunk(start, end, num_parts))
-            num_parts += 1
+            for i in range(0, file_size, chunk_size):
+                start = i
+                end = min(i + chunk_size - 1, file_size - 1)
+                chunk_tasks.append(download_chunk(start, end, num_parts, session))
+                num_parts += 1
 
-        # Start downloading
-        await asyncio.gather(*chunk_tasks)
+            # Start downloading
+            await asyncio.gather(*chunk_tasks)
 
-        # If progress reached 100%, stop all downloads
-        if progress_reached_100:
-            logging.info("Download reached 100%, proceeding to merge.")
+            # If progress reached 100%, stop all downloads
+            if progress_reached_100:
+                logging.info("Download reached 100%, proceeding to merge.")
 
-        # Merge whatever chunks are available
-        async with aiofiles.open(file_path, "wb") as final_file:
-            for part_num in range(num_parts):
-                part_filename = f"{file_path}.part{part_num}"
-                if os.path.exists(part_filename):
-                    async with aiofiles.open(part_filename, "rb") as part_file:
-                        await final_file.write(await part_file.read())
-                    os.remove(part_filename)
+            # Merge whatever chunks are available
+            async with aiofiles.open(file_path, "wb") as final_file:
+                for part_num in range(num_parts):
+                    part_filename = f"{file_path}.part{part_num}"
+                    if os.path.exists(part_filename):
+                        async with aiofiles.open(part_filename, "rb") as part_file:
+                            await final_file.write(await part_file.read())
+                        os.remove(part_filename)
 
-        logging.info(f"Download complete: {file_path}")
+            logging.info(f"Download complete: {file_path}")
 
-        # Send completion message
-        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+            # Send completion message
+            await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
 
-        return file_path, thumb_path, video_title, duration
+            return file_path, thumb_path, video_title, duration
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
+
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
