@@ -35,7 +35,8 @@ import mmap
 from shutil import which
 import subprocess
 
-async def download_video(url, reply_msg, user_mention, user_id):
+
+async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
     try:
         logging.info(f"Fetching video info: {url}")
 
@@ -90,49 +91,60 @@ async def download_video(url, reply_msg, user_mention, user_id):
         last_downloaded = 0
         start_time = time.time()
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(download_link, headers=headers, timeout=600) as response:
-                if response.status not in [200, 206]:
-                    raise Exception(f"Failed to start download. HTTP {response.status}")
+        # **Use TCP Connector for better performance**
+        connector = aiohttp.TCPConnector(limit=8, force_close=True)
 
-                async with aiofiles.open(file_path, "wb") as file:
-                    async for chunk in response.content.iter_any():
-                        await file.write(chunk)
-                        downloaded_size += len(chunk)
-                        last_downloaded += len(chunk)
+        # **Retry Mechanism**
+        for attempt in range(max_retries):
+            try:
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.get(download_link, headers=headers, timeout=900) as response:
+                        if response.status not in [200, 206]:
+                            raise Exception(f"Failed to start download. HTTP {response.status}")
 
-                        # Update progress every 5 seconds
-                        if time.time() - last_update_time > 5:
-                            progress = min((downloaded_size / file_size) * 100, 100)  # Ensure max 100%
-                            speed = last_downloaded / (time.time() - last_update_time)
-                            eta = (file_size - downloaded_size) / speed if speed > 0 else 0
+                        async with aiofiles.open(file_path, "wb") as file:
+                            async for chunk in response.content.iter_chunked(5 * 1024 * 1024):  # 5 MB chunks
+                                await file.write(chunk)
+                                downloaded_size += len(chunk)
+                                last_downloaded += len(chunk)
 
-                            speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
-                            eta_str = time.strftime("%M:%S", time.gmtime(eta))
-                            file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
+                                # Update progress every 5 seconds
+                                if time.time() - last_update_time > 5:
+                                    progress = min((downloaded_size / file_size) * 100, 100)  # Ensure max 100%
+                                    speed = last_downloaded / (time.time() - last_update_time)
+                                    eta = (file_size - downloaded_size) / speed if speed > 0 else 0
 
-                            await reply_msg.edit_text(
-                                f"📥 Downloading: {video_title}\n"
-                                f"📊 Progress: `{progress:.2f}%`\n"
-                                f"📦 File Size: `{file_size_str}`\n"
-                                f"🚀 Speed: `{speed_str}`\n"
-                                f"⏳ ETA: `{eta_str}`",
-                                parse_mode=ParseMode.MARKDOWN
-                            )
-                            last_update_time = time.time()
-                            last_downloaded = 0
+                                    speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                    eta_str = time.strftime("%M:%S", time.gmtime(eta))
+                                    file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
 
-        logging.info(f"Download complete: {file_path}")
+                                    await reply_msg.edit_text(
+                                        f"📥 **Downloading:** {video_title}\n"
+                                        f"📊 Progress: `{progress:.2f}%`\n"
+                                        f"📦 File Size: `{file_size_str}`\n"
+                                        f"🚀 Speed: `{speed_str}`\n"
+                                        f"⏳ ETA: `{eta_str}`",
+                                        parse_mode="Markdown"
+                                    )
+                                    last_update_time = time.time()
+                                    last_downloaded = 0
 
-        # Send completion message
-        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+                logging.info(f"Download complete: {file_path}")
 
-        return file_path, thumb_path, video_title, duration
+                # Send completion message
+                await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+                return file_path, thumb_path, video_title, duration
+
+            except Exception as e:
+                logging.warning(f"Download failed (Attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(3)  # Wait before retrying
+                else:
+                    raise  # Raise error if all retries fail
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
-
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
