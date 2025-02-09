@@ -112,7 +112,7 @@ async def download_video(url, reply_msg, user_mention, user_id):
                             file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
 
                             await reply_msg.edit_text(
-                                f"📥 **Downloading:** {video_title}\n"
+                                f"📥 Downloading: {video_title}\n"
                                 f"📊 Progress: `{progress:.2f}%`\n"
                                 f"📦 File Size: `{file_size_str}`\n"
                                 f"🚀 Speed: `{speed_str}`\n"
