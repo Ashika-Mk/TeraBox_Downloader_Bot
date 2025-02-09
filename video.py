@@ -35,13 +35,14 @@ import mmap
 from shutil import which
 import subprocess
 
-
-async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
+async def download_video(url, reply_msg, user_mention, user_id, chunk_size=30 * 1024 * 1024, max_workers=12):
     try:
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=600, sock_read=600, sock_connect=120)
+        connector = aiohttp.TCPConnector(limit_per_host=10, enable_cleanup_closed=True)
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
             async with session.get(f"https://tbox-vids.vercel.app/api?data={url}") as response:
                 if response.status != 200:
                     raise Exception("Failed to fetch video details.")
@@ -57,8 +58,8 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
         thumb_url = data.get("thumb")
         duration = data.get("duration", 0)
 
-        # Add a random query parameter to bypass caching
-        download_link += f"&random={random.randint(1, 10)}"
+        # Bypass caching with a random query parameter
+        download_link += f"&random={random.randint(1, 1000)}"
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes | Duration: {duration}s")
 
@@ -67,6 +68,8 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
             "Referer": "https://www.terabox.com/",
             "Accept-Language": "en-US,en;q=0.9",
             "Connection": "keep-alive",
+            "Range": "bytes=0-",  # Support partial downloads
+            "Cache-Control": "no-cache",
         }
 
         file_path = video_title
@@ -89,58 +92,90 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
         downloaded_size = 0
         last_update_time = time.time()
         last_downloaded = 0
-        start_time = time.time()
+        semaphore = asyncio.Semaphore(max_workers)
+        progress_reached_100 = False
 
-        # **Use TCP Connector for better performance**
-        connector = aiohttp.TCPConnector(limit=8, force_close=True)
+        # Function to download a chunk
+        async def download_chunk(start, end, part_num):
+            nonlocal downloaded_size, last_update_time, last_downloaded, progress_reached_100
+            part_filename = f"{file_path}.part{part_num}"
 
-        # **Retry Mechanism**
-        for attempt in range(max_retries):
-            try:
-                async with aiohttp.ClientSession(connector=connector) as session:
-                    async with session.get(download_link, headers=headers, timeout=900) as response:
-                        if response.status not in [200, 206]:
-                            raise Exception(f"Failed to start download. HTTP {response.status}")
+            async with semaphore:
+                try:
+                    async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+                        headers["Range"] = f"bytes={start}-{end}"
+                        async with session.get(download_link, headers=headers) as response:
+                            if response.status not in [200, 206]:
+                                logging.warning(f"Chunk {part_num} failed: HTTP {response.status}")
+                                return  # Skip chunk instead of retrying
 
-                        async with aiofiles.open(file_path, "wb") as file:
-                            async for chunk in response.content.iter_chunked(5 * 1024 * 1024):  # 5 MB chunks
-                                await file.write(chunk)
-                                downloaded_size += len(chunk)
-                                last_downloaded += len(chunk)
+                            async with aiofiles.open(part_filename, "wb") as f:
+                                async for chunk in response.content.iter_any():
+                                    await f.write(chunk)
+                                    downloaded_size += len(chunk)
+                                    last_downloaded += len(chunk)
 
-                                # Update progress every 5 seconds
-                                if time.time() - last_update_time > 5:
-                                    progress = min((downloaded_size / file_size) * 100, 100)  # Ensure max 100%
-                                    speed = last_downloaded / (time.time() - last_update_time)
-                                    eta = (file_size - downloaded_size) / speed if speed > 0 else 0
+                                    # Update progress every 5 seconds
+                                    if time.time() - last_update_time > 5:
+                                        progress = min((downloaded_size / file_size) * 100, 100)  # Ensure it never exceeds 100%
+                                        
+                                        speed = last_downloaded / (time.time() - last_update_time)
+                                        eta = (file_size - downloaded_size) / speed if speed > 0 else 0
 
-                                    speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
-                                    eta_str = time.strftime("%M:%S", time.gmtime(eta))
-                                    file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
+                                        speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                        eta_str = time.strftime("%M:%S", time.gmtime(eta))
 
-                                    await reply_msg.edit_text(
-                                        f"📥 Downloading: {video_title}\n"
-                                        f"📊 Progress: `{progress:.2f}%`\n"
-                                        f"📦 File Size: `{file_size_str}`\n"
-                                        f"🚀 Speed: `{speed_str}`\n"
-                                        f"⏳ ETA: `{eta_str}`",
-                                        parse_mode=ParseMode.MARKDOWN
-                                    )
-                                    last_update_time = time.time()
-                                    last_downloaded = 0
+                                        await reply_msg.edit_text(
+                                            f"📥 Downloading: {video_title}\n"
+                                            f"📊 Progress: `{progress:.2f}%`\n"
+                                            f"📦 File Size: `{file_size / (1024 * 1024):.2f} MB`\n"
+                                            f"🚀 Speed: `{speed_str}`\n"
+                                            f"⏳ ETA: `{eta_str}`",
+                                            parse_mode=ParseMode.MARKDOWN
+                                        )
+                                        last_update_time = time.time()
+                                        last_downloaded = 0
 
-                logging.info(f"Download complete: {file_path}")
+                                        if progress >= 100:
+                                            progress_reached_100 = True  # Mark as complete
+                except asyncio.TimeoutError:
+                    logging.error(f"Chunk {part_num} timed out. Retrying...")
+                    await asyncio.sleep(5)
+                    return await download_chunk(start, end, part_num)  # Retry chunk if timed out
 
-                # Send completion message
-                await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-                return file_path, thumb_path, video_title, duration
+        # Split file into chunks
+        chunk_tasks = []
+        chunk_size = min(chunk_size, file_size // max_workers)
+        num_parts = 0
 
-            except Exception as e:
-                logging.warning(f"Download failed (Attempt {attempt + 1}/{max_retries}): {e}")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(3)  # Wait before retrying
-                else:
-                    raise  # Raise error if all retries fail
+        for i in range(0, file_size, chunk_size):
+            start = i
+            end = min(i + chunk_size - 1, file_size - 1)
+            chunk_tasks.append(download_chunk(start, end, num_parts))
+            num_parts += 1
+
+        # Start downloading
+        await asyncio.gather(*chunk_tasks)
+
+        # If progress reached 100%, stop all downloads
+        if progress_reached_100:
+            logging.info("Download reached 100%, proceeding to merge.")
+
+        # Merge whatever chunks are available
+        async with aiofiles.open(file_path, "wb") as final_file:
+            for part_num in range(num_parts):
+                part_filename = f"{file_path}.part{part_num}"
+                if os.path.exists(part_filename):
+                    async with aiofiles.open(part_filename, "rb") as part_file:
+                        await final_file.write(await part_file.read())
+                    os.remove(part_filename)
+
+        logging.info(f"Download complete: {file_path}")
+
+        # Send completion message
+        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+
+        return file_path, thumb_path, video_title, duration
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
