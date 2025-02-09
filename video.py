@@ -117,7 +117,7 @@ async def download_video(url, reply_msg, user_mention, user_id):
                                 f"📦 File Size: `{file_size_str}`\n"
                                 f"🚀 Speed: `{speed_str}`\n"
                                 f"⏳ ETA: `{eta_str}`",
-                                parse_mode="Markdown"
+                                parse_mode=ParseMode.MARKDOWN
                             )
                             last_update_time = time.time()
                             last_downloaded = 0
