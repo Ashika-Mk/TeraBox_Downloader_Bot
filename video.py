@@ -242,5 +242,5 @@ async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg
 
     except Exception as e:
         logging.error(f"Error during upload: {e}", exc_info=True)
-        await reply_msg.reply_text("⚠️ Upload failed. Please try again later.")
+        #await reply_msg.reply_text("⚠️ Upload failed. Please try again later.")
         return None
