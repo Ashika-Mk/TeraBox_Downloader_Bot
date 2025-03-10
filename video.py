@@ -41,7 +41,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
 
         # Fetch video details
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://tbox-vids.vercel.app/api?data={url}") as response:
+            async with session.get(f"https://terabox.web.id/url?url={url}&token=rohit95") as response:
                 if response.status != 200:
                     raise Exception("Failed to fetch video details.")
                 data = await response.json()
