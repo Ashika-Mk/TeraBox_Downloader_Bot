@@ -47,7 +47,7 @@ async def is_subscribed(filter, client):
     if not Channel_ids:
         return True
 
-    user_id = update.from_user.id
+    user_id = message.from_user.id
 
     if any([user_id == OWNER_ID, await db.admin_exist(user_id)]):
         return True
