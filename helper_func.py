@@ -40,16 +40,17 @@ async def check_admin(filter, client, update):
         print(f"! Exception in check_admin: {e}")
         return False
 
+
 # Check user subscription in Channels in a more optimized way
-async def is_subscribed(user_id, filter, client):
-    Channel_ids = await db.get_all_channels() or []
+async def is_subscribed(client, update):
+    Channel_ids = await db.get_all_channels()
 
     if not Channel_ids:
         return True
 
-    user_id = message.from_user.id
+    user_id = update.from_user.id
 
-    if any([user_id == OWNER_ID, await db.admin_exist(user_id)]):
+    if user_id in Var.ADMINS:
         return True
 
     # Handle the case for a single channel directly (no need for gather)
