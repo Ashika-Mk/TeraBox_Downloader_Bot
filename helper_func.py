@@ -43,28 +43,25 @@ async def check_admin(filter, client, update):
 
 # Check user subscription in Channels in a more optimized way
 async def is_subscribed(client, update):
-    if update is None or update.from_user is None:  # Check if update is None
-        return False  # Treat as not subscribed (or handle differently)
+    if not update or not isinstance(update, Message) or not getattr(update, "from_user", None):
+        return False  # Ensures update is a valid Message object with a user
 
-    Channel_ids = await db.get_all_channels() or []  # Ensure it's always a list
-
-    if not Channel_ids:
-        return True
+    Channel_ids = await db.get_all_channels()
+    if not Channel_ids:  
+        return True  # No channels to check, assume subscribed
 
     user_id = update.from_user.id
 
-    if any([user_id == OWNER_ID, await db.admin_exist(user_id)]):
+    if user_id == OWNER_ID or await db.admin_exist(user_id):
         return True
 
-    # Handle the case for a single channel directly
     if len(Channel_ids) == 1:
         return await is_userJoin(client, user_id, Channel_ids[0])
 
-    # Use asyncio.gather to check multiple channels concurrently
     tasks = [is_userJoin(client, user_id, ids) for ids in Channel_ids if ids]
     results = await asyncio.gather(*tasks)
 
-    return all(results)  # Return False if any check fails
+    return all(results)
 
 
 #Chcek user subscription by specifying channel id and user id
