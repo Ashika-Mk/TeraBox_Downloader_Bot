@@ -39,6 +39,7 @@ db_channel_id=CHANNEL_ID
 
 async def handle_message(client: Client, message: Message):
     user_id = message.from_user.id
+    update = update.from_user.id
     user_mention = message.from_user.mention
     message_text = message.text.strip() if message.text else ""
 
