@@ -41,7 +41,7 @@ async def check_admin(filter, client, update):
         return False
 
 # Check user subscription in Channels in a more optimized way
-async def is_subscribed(filter, client):
+async def is_subscribed(user_id, filter, client):
     Channel_ids = await db.get_all_channels() or []
 
     if not Channel_ids:
