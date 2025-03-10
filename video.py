@@ -58,13 +58,6 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Referer": "https://www.terabox.com/",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Connection": "keep-alive",
-        }
-
         # Ensure safe filenames
         safe_title = video_title.replace(" ", "_").replace("/", "_").replace("\\", "_")
         file_path = f"{safe_title}"
@@ -94,15 +87,15 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
         for attempt in range(max_retries):
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(download_link, headers=headers, timeout=900) as response:
+                    async with session.get(download_link, timeout=900) as response:
                         if response.status != 200:
                             raise Exception(f"Failed to start download. HTTP {response.status}")
 
                         async with aiofiles.open(file_path, "wb") as file:
-                            while True:
-                                chunk = await response.content.read(5 * 1024 * 1024)  # 5MB chunks
-                                if not chunk:
-                                    break
+                            while downloaded_size < file_size:
+                                chunk_size = min(5 * 1024 * 1024, file_size - downloaded_size)  # 5MB or remaining size
+                                chunk = await response.content.readexactly(chunk_size)  # Ensure exact chunk size
+
                                 await file.write(chunk)
                                 downloaded_size += len(chunk)
                                 last_downloaded += len(chunk)
@@ -140,7 +133,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
                     f"✅ Download Complete!\n📂 {video_title}\n📦 Size: `{file_size_str}`\n🚀 Speed: `{speed_str}`",
                     parse_mode=ParseMode.MARKDOWN
                 )
-                return file_path, thumb_path, video_title, None
+                return file_path, thumb_path, video_title, file_size_str, speed_str
 
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt + 1}/{max_retries}): {e}")
@@ -151,7 +144,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
-        return None, None, None, None
+        return None, None, None, None, None
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
