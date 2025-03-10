@@ -55,13 +55,14 @@ async def fetch_json(url: str) -> dict:
         async with session.get(url) as resp:
             return await resp.json()
 
-async def download(url: str, user_id: int, filename: str, reply_msg, user_mention) -> str:
-    # Create a unique filename
+async def download(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
     sanitized_filename = filename.replace("/", "_").replace("\\", "_")
     file_path = os.path.join(os.getcwd(), sanitized_filename)
 
-    # Get fresh cookies
     cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
+
+    download_key = f"{user_id}-{sanitized_filename}"  # Unique key per file
+    downloads_manager[download_key] = {"downloaded": 0}
 
     async with aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=900),
@@ -71,9 +72,7 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
             if resp.status != 200:
                 raise Exception(f"Failed to fetch video: HTTP {resp.status}")
 
-            total_size = int(resp.headers.get("Content-Length", 0))
-            downloads_manager[user_id] = {"downloaded": 0}
-
+            total_size = int(resp.headers.get("Content-Length", 0)) or file_size  # Ensure file size is correct
             start_time = datetime.now()
             last_update_time = time.time()
 
@@ -109,10 +108,14 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
                     chunk = await resp.content.read(10 * 1024 * 1024)  # 10MB chunks
                     if not chunk:
                         break
+                    if downloads_manager[download_key]["downloaded"] + len(chunk) > total_size:
+                        logging.warning(f"Download exceeded expected size for {filename}. Stopping...")
+                        break
                     await f.write(chunk)
-                    downloads_manager[user_id]['downloaded'] += len(chunk)
-                    await progress(downloads_manager[user_id]['downloaded'], total_size)
+                    downloads_manager[download_key]['downloaded'] += len(chunk)
+                    await progress(downloads_manager[download_key]['downloaded'], total_size)
 
+    downloads_manager.pop(download_key, None)  # Cleanup after completion
     return file_path
 
 async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
