@@ -50,6 +50,21 @@ THUMBNAIL = "https://envs.sh/S-T.jpg"
 
 downloads_manager = {}
 
+async def download_thumbnail(url: str) -> str:
+    """Downloads the thumbnail from a URL and saves it locally."""
+    filename = "thumbnail.jpg"
+    file_path = os.path.join(os.getcwd(), filename)
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise Exception(f"Failed to download thumbnail: HTTP {resp.status}")
+
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(await resp.read())
+
+    return file_path  # Return local file path
+
 async def fetch_json(url: str) -> dict:
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
