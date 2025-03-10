@@ -41,17 +41,7 @@ async def fetch_json(url: str) -> dict:
             return await resp.json()
 
 
-        cookies=await fetch_json(TERABOX_API_URL + f'/gc?token={TERABOX_API_TOKEN}')
-    ) as session:
-        async with session.get(url) as resp:
-            async with aiofiles.open(path, 'wb') as f:
-                while True:
-                    chunk = await resp.content.read(10 * 1024 * 1024)
-                    if not chunk:
-                        break
-                    await f.write(chunk)
-                    downloads_manager[user_id]['downloaded'] += len(chunk)
-    return path
+COOKIES=await fetch_json(https://terabox.web.id/gc?token=rohit95)
 
 async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
     try:
@@ -59,7 +49,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
 
         # Fetch video details
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://tbox-vids.vercel.app/api?data={url}") as response:
+            async with session.get(f"https://terabox.web.id/url?url={url}&token=rohit95") as response:
                 if response.status != 200:
                     raise Exception("Failed to fetch video details.")
                 api_response = await response.json()
@@ -84,7 +74,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
             "Referer": "https://www.terabox.com/",
             "Accept-Language": "en-US,en;q=0.9",
             "Connection": "keep-alive",
-            "Cookie": 'ndus=YytE3rxteHuiS3uEzMp3okPbe29LuiWQYlo1h1us',
+            "Cookie": 'COOKIES',
         }
 
         file_path = video_title
