@@ -44,6 +44,7 @@ import logging
 
 TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "rohit95"
+THUMBNAIL = "https://envs.sh/S-T.jpg"
 
 downloads_manager = {}
 
@@ -56,7 +57,7 @@ async def download(url: str, user_id: int) -> str:
     dir_path = 'DL'
     os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
 
-    path = f'{dir_path}/{user_id}_{random.randint(1000,9999)}.mp4'  # Prevent overwrite
+    path = f'{dir_path}/{user_id}_{random.randint(1,10)}.mp4'  # Prevent overwrite
 
     # Get fresh cookies for every request
     cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
