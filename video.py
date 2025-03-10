@@ -132,7 +132,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         data = api_response[0]
         download_link = data["link"] + f"&random={random.randint(1, 10)}"
         video_title = data["filename"]
-        file_size = data.get("size", 0)
+        file_size = int(data.get("size", 0))  # Convert to int to ensure proper type
         thumb_url = THUMBNAIL  # Use default if missing
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
@@ -143,7 +143,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         # Retry logic for robustness
         for attempt in range(1, max_retries + 1):
             try:
-                file_path = await asyncio.create_task(download(download_link, user_id, video_title, reply_msg, user_mention))
+                file_path = await asyncio.create_task(download(download_link, user_id, video_title, reply_msg, user_mention, file_size))
                 break  # Exit loop if successful
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
@@ -158,7 +158,6 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
-
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
