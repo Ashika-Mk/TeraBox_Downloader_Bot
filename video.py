@@ -35,97 +35,135 @@ import mmap
 from shutil import which
 import subprocess
 
-async def download_video(url, user_id, user_mention, reply_msg):
+async def fetch_json(url: str) -> dict:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            return await resp.json()
+
+
+        cookies=await fetch_json(TERABOX_API_URL + f'/gc?token={TERABOX_API_TOKEN}')
+    ) as session:
+        async with session.get(url) as resp:
+            async with aiofiles.open(path, 'wb') as f:
+                while True:
+                    chunk = await resp.content.read(10 * 1024 * 1024)
+                    if not chunk:
+                        break
+                    await f.write(chunk)
+                    downloads_manager[user_id]['downloaded'] += len(chunk)
+    return path
+
+async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
     try:
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://terabox.web.id/url?url={url}&token=rohit95") as response:
+            async with session.get(f"https://tbox-vids.vercel.app/api?data={url}") as response:
                 if response.status != 200:
                     raise Exception("Failed to fetch video details.")
-                data = await response.json()
+                api_response = await response.json()
 
-        if not isinstance(data, list) or not data:
+        if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
             raise Exception("Invalid API response format.")
 
-        # Extract details
-        video_info = data[0]
-        video_title = video_info["filename"]
-        download_link = video_info["link"]
-        file_size = video_info.get("size", 0)
-        thumb_url = video_info.get("thumbnail")
+        # Extract details from the response
+        data = api_response[0]
+        download_link = data["link"]
+        video_title = data["filename"]
+        file_size = data.get("size", 0)
+        thumb_url = data.get("thumbnail")
+
+        # Add a random query parameter to bypass caching
+        download_link += f"&random={random.randint(1, 10)}"
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
 
-        # Sanitize filename
-        safe_title = video_title.replace(" ", "_").replace("/", "_").replace("\\", "_")
-        file_path = f"{safe_title}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Referer": "https://www.terabox.com/",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Connection": "keep-alive",
+            "Cookie": 'ndus=YytE3rxteHuiS3uEzMp3okPbe29LuiWQYlo1h1us',
+        }
+
+        file_path = video_title
         thumb_path = None
 
-        # Download thumbnail
+        # Download thumbnail if available
         if thumb_url:
-            thumb_path = f"{safe_title}.jpg"
-            async with session.get(thumb_url) as response:
-                if response.status == 200:
-                    async with aiofiles.open(thumb_path, "wb") as f:
-                        await f.write(await response.read())
-                    logging.info(f"Thumbnail downloaded: {thumb_path}")
-                else:
-                    thumb_path = None  # Thumbnail download failed
+            thumb_path = f"{video_title}.jpg"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(thumb_url) as response:
+                    if response.status == 200:
+                        async with aiofiles.open(thumb_path, "wb") as f:
+                            await f.write(await response.read())
+                    else:
+                        thumb_path = None  # Thumbnail download failed
 
         if file_size == 0:
             raise Exception("Failed to get file size, download aborted.")
 
-        start_time = time.time()
         downloaded_size = 0
-        last_update_time = start_time
+        last_update_time = time.time()
+        last_downloaded = 0
+        start_time = time.time()
 
-        async with session.get(download_link) as response:
-            if response.status != 200:
-                raise Exception(f"Failed to start download. HTTP {response.status}")
+        # **Use TCP Connector for better performance**
+        connector = aiohttp.TCPConnector(limit=8, force_close=True)
 
-            async with aiofiles.open(file_path, "wb") as file:
-                async for chunk in response.content.iter_any():
-                    await file.write(chunk)
-                    downloaded_size += len(chunk)
+        # **Retry Mechanism**
+        for attempt in range(max_retries):
+            try:
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.get(download_link, headers=headers, timeout=900) as response:
+                        if response.status not in [200, 206]:
+                            raise Exception(f"Failed to start download. HTTP {response.status}")
 
-                    # Update progress every 5 seconds
-                    if time.time() - last_update_time > 5:
-                        progress = min((downloaded_size / file_size) * 100, 100)
-                        speed = downloaded_size / (time.time() - start_time)
-                        eta = (file_size - downloaded_size) / speed if speed > 0 else 0
+                        async with aiofiles.open(file_path, "wb") as file:
+                            async for chunk in response.content.iter_chunked(5 * 1024 * 1024):  # 5 MB chunks
+                                await file.write(chunk)
+                                downloaded_size += len(chunk)
+                                last_downloaded += len(chunk)
 
-                        speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
-                        eta_str = time.strftime("%M:%S", time.gmtime(eta))
-                        file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
+                                # Update progress every 5 seconds
+                                if time.time() - last_update_time > 5:
+                                    progress = min((downloaded_size / file_size) * 100, 100)  # Ensure max 100%
+                                    speed = last_downloaded / (time.time() - last_update_time)
+                                    eta = (file_size - downloaded_size) / speed if speed > 0 else 0
 
-                        await reply_msg.edit_text(
-                            f"📥 Downloading: {video_title}\n"
-                            f"📊 Progress: `{progress:.2f}%`\n"
-                            f"📦 File Size: `{file_size_str}`\n"
-                            f"🚀 Speed: `{speed_str}`\n"
-                            f"⏳ ETA: `{eta_str}`",
-                            parse_mode=ParseMode.MARKDOWN
-                        )
-                        last_update_time = time.time()
+                                    speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                    eta_str = time.strftime("%M:%S", time.gmtime(eta))
+                                    file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
 
-        logging.info(f"Download complete: {file_path}")
+                                    await reply_msg.edit_text(
+                                        f"📥 Downloading: {video_title}\n"
+                                        f"📊 Progress: `{progress:.2f}%`\n"
+                                        f"📦 File Size: `{file_size_str}`\n"
+                                        f"🚀 Speed: `{speed_str}`\n"
+                                        f"⏳ ETA: `{eta_str}`",
+                                        parse_mode=ParseMode.MARKDOWN
+                                    )
+                                    last_update_time = time.time()
+                                    last_downloaded = 0
 
-        # Send completion message
-        total_time = time.time() - start_time
-        speed_str = f"{(file_size / total_time) / (1024 * 1024):.2f} MB/s"
-        file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
+                logging.info(f"Download complete: {file_path}")
 
-        await reply_msg.edit_text(
-            f"✅ Download Complete!\n📂 {video_title}\n📦 Size: `{file_size_str}`\n🚀 Speed: `{speed_str}`",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return file_path, thumb_path, video_title, file_size_str, speed_str
+                # Send completion message
+                await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+                return file_path, thumb_path, video_title, None  # No duration in response
+
+            except Exception as e:
+                logging.warning(f"Download failed (Attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(3)  # Wait before retrying
+                else:
+                    raise  # Raise error if all retries fail
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
-        return None, None, None, None, None
+        return None, None, None, None
+
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
