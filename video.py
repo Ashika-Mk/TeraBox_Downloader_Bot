@@ -36,6 +36,13 @@ from shutil import which
 import subprocess
 
 
+import os
+import aiohttp
+import aiofiles
+import random
+import asyncio
+import logging
+
 TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "rohit95"
 
@@ -50,16 +57,19 @@ async def download(url: str, user_id: int) -> str:
     dir_path = 'DL'
     os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
 
-    path = f'{dir_path}/{user_id}.mp4'
+    path = f'{dir_path}/{user_id}_{random.randint(1000,9999)}.mp4'  # Prevent overwrite
 
-    # Fetch cookies dynamically inside the function
+    # Get fresh cookies for every request
     cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
 
     async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(),
+        timeout=aiohttp.ClientTimeout(total=900),  # 15-minute timeout
         cookies=cookies
     ) as session:
         async with session.get(url) as resp:
+            if resp.status != 200:
+                raise Exception(f"Failed to fetch video: HTTP {resp.status}")
+
             async with aiofiles.open(path, 'wb') as f:
                 while True:
                     chunk = await resp.content.read(10 * 1024 * 1024)  # 10MB chunks
@@ -70,7 +80,7 @@ async def download(url: str, user_id: int) -> str:
 
     return path
 
-async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
+async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
     try:
         logging.info(f"Fetching video info: {url}")
 
@@ -94,8 +104,16 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
 
         downloads_manager[user_id] = {"downloaded": 0}
 
-        # Start download and track progress
-        file_path = await asyncio.create_task(download(download_link, user_id))
+        # Retry logic for robustness
+        for attempt in range(1, max_retries + 1):
+            try:
+                file_path = await asyncio.create_task(download(download_link, user_id))
+                break  # Exit loop if successful
+            except Exception as e:
+                logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
+                if attempt == max_retries:
+                    raise e  # Raise error if all retries fail
+                await asyncio.sleep(3)  # Wait before retrying
 
         # Send completion message
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
