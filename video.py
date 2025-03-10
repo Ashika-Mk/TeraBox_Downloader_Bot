@@ -74,7 +74,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
             "Referer": "https://www.terabox.com/",
             "Accept-Language": "en-US,en;q=0.9",
             "Connection": "keep-alive",
-            "Cookie": COOKIES,
+            "Cookie": COOKIES
         }
 
         file_path = video_title
