@@ -55,57 +55,56 @@ async def fetch_json(url: str) -> dict:
         async with session.get(url) as resp:
             return await resp.json()
 
-async def download(url: str, user_id: int, reply_msg, video_title, user_mention) -> str:
-    dir_path = 'DL'
-    os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
+async def download(url: str, user_id: int, filename: str, reply_msg, user_mention) -> str:
+    # Create a unique filename
+    sanitized_filename = filename.replace("/", "_").replace("\\", "_")
+    file_path = os.path.join(os.getcwd(), sanitized_filename)
 
-    path = f'{dir_path}/{user_id}_{random.randint(1,10)}.mp4'  # Prevent overwrite
-
-    # Get fresh cookies for every request
+    # Get fresh cookies
     cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
 
     async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=900),  # 15-minute timeout
+        timeout=aiohttp.ClientTimeout(total=900),
         cookies=cookies
     ) as session:
         async with session.get(url) as resp:
             if resp.status != 200:
                 raise Exception(f"Failed to fetch video: HTTP {resp.status}")
 
-            async with aiofiles.open(path, 'wb') as f:
-                total_size = int(resp.headers.get("Content-Length", 0))
-                downloads_manager[user_id] = {"downloaded": 0}
+            total_size = int(resp.headers.get("Content-Length", 0))
+            downloads_manager[user_id] = {"downloaded": 0}
 
-                start_time = datetime.now()
-                last_update_time = time.time()
+            start_time = datetime.now()
+            last_update_time = time.time()
 
-                async def progress(current, total):
-                    nonlocal last_update_time
-                    percentage = (current / total) * 100 if total else 0
-                    elapsed_time_seconds = (datetime.now() - start_time).total_seconds()
-                    speed = current / elapsed_time_seconds if elapsed_time_seconds > 0 else 0
-                    eta = (total - current) / speed if speed > 0 else 0
+            async def progress(current, total):
+                nonlocal last_update_time
+                percentage = (current / total) * 100 if total else 0
+                elapsed_time_seconds = (datetime.now() - start_time).total_seconds()
+                speed = current / elapsed_time_seconds if elapsed_time_seconds > 0 else 0
+                eta = (total - current) / speed if speed > 0 else 0
 
-                    if time.time() - last_update_time > 2:
-                        progress_text = format_progress_bar(
-                            filename=video_title,
-                            percentage=percentage,
-                            done=current,
-                            total_size=total,
-                            status="Downloading",
-                            eta=eta,
-                            speed=speed,
-                            elapsed=elapsed_time_seconds,
-                            user_mention=user_mention,
-                            user_id=user_id,
-                            aria2p_gid=""
-                        )
-                        try:
-                            await reply_msg.edit_text(progress_text)
-                            last_update_time = time.time()
-                        except Exception as e:
-                            logging.warning(f"Error updating progress message: {e}")
+                if time.time() - last_update_time > 2:
+                    progress_text = format_progress_bar(
+                        filename=filename,
+                        percentage=percentage,
+                        done=current,
+                        total_size=total,
+                        status="Downloading",
+                        eta=eta,
+                        speed=speed,
+                        elapsed=elapsed_time_seconds,
+                        user_mention=user_mention,
+                        user_id=user_id,
+                        aria2p_gid=""
+                    )
+                    try:
+                        await reply_msg.edit_text(progress_text)
+                        last_update_time = time.time()
+                    except Exception as e:
+                        logging.warning(f"Error updating progress message: {e}")
 
+            async with aiofiles.open(file_path, 'wb') as f:
                 while True:
                     chunk = await resp.content.read(10 * 1024 * 1024)  # 10MB chunks
                     if not chunk:
@@ -114,7 +113,7 @@ async def download(url: str, user_id: int, reply_msg, video_title, user_mention)
                     downloads_manager[user_id]['downloaded'] += len(chunk)
                     await progress(downloads_manager[user_id]['downloaded'], total_size)
 
-    return path
+    return file_path
 
 async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
     try:
@@ -128,10 +127,10 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
         # Extract details from response
         data = api_response[0]
-        download_link = data["link"] + f"&random={random.randint(1, 10)}"  # Bypass caching
+        download_link = data["link"] + f"&random={random.randint(1, 10)}"
         video_title = data["filename"]
         file_size = data.get("size", 0)
-        thumb_url = data.get("thumbnail", THUMBNAIL)  # Use default thumbnail if missing
+        thumb_url = data.get("thumbnail", THUMBNAIL)  # Use default if missing
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
 
@@ -141,13 +140,13 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         # Retry logic for robustness
         for attempt in range(1, max_retries + 1):
             try:
-                file_path = await asyncio.create_task(download(download_link, user_id, reply_msg, video_title, user_mention))
+                file_path = await asyncio.create_task(download(download_link, user_id, video_title, reply_msg, user_mention))
                 break  # Exit loop if successful
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
                 if attempt == max_retries:
                     raise e  # Raise error if all retries fail
-                await asyncio.sleep(3)  # Wait before retrying
+                await asyncio.sleep(3)
 
         # Send completion message
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
