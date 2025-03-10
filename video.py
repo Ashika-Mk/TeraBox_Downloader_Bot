@@ -41,6 +41,8 @@ import aiofiles
 import random
 import asyncio
 import logging
+import time
+from datetime import datetime
 
 TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "rohit95"
@@ -53,7 +55,7 @@ async def fetch_json(url: str) -> dict:
         async with session.get(url) as resp:
             return await resp.json()
 
-async def download(url: str, user_id: int) -> str:
+async def download(url: str, user_id: int, reply_msg, video_title, user_mention) -> str:
     dir_path = 'DL'
     os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
 
@@ -71,12 +73,46 @@ async def download(url: str, user_id: int) -> str:
                 raise Exception(f"Failed to fetch video: HTTP {resp.status}")
 
             async with aiofiles.open(path, 'wb') as f:
+                total_size = int(resp.headers.get("Content-Length", 0))
+                downloads_manager[user_id] = {"downloaded": 0}
+
+                start_time = datetime.now()
+                last_update_time = time.time()
+
+                async def progress(current, total):
+                    nonlocal last_update_time
+                    percentage = (current / total) * 100 if total else 0
+                    elapsed_time_seconds = (datetime.now() - start_time).total_seconds()
+                    speed = current / elapsed_time_seconds if elapsed_time_seconds > 0 else 0
+                    eta = (total - current) / speed if speed > 0 else 0
+
+                    if time.time() - last_update_time > 2:
+                        progress_text = format_progress_bar(
+                            filename=video_title,
+                            percentage=percentage,
+                            done=current,
+                            total_size=total,
+                            status="Downloading",
+                            eta=eta,
+                            speed=speed,
+                            elapsed=elapsed_time_seconds,
+                            user_mention=user_mention,
+                            user_id=user_id,
+                            aria2p_gid=""
+                        )
+                        try:
+                            await reply_msg.edit_text(progress_text)
+                            last_update_time = time.time()
+                        except Exception as e:
+                            logging.warning(f"Error updating progress message: {e}")
+
                 while True:
                     chunk = await resp.content.read(10 * 1024 * 1024)  # 10MB chunks
                     if not chunk:
                         break
                     await f.write(chunk)
                     downloads_manager[user_id]['downloaded'] += len(chunk)
+                    await progress(downloads_manager[user_id]['downloaded'], total_size)
 
     return path
 
@@ -95,19 +131,17 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         download_link = data["link"] + f"&random={random.randint(1, 10)}"  # Bypass caching
         video_title = data["filename"]
         file_size = data.get("size", 0)
-        thumb_url = data.get("thumbnail")
+        thumb_url = data.get("thumbnail", THUMBNAIL)  # Use default thumbnail if missing
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
 
         if file_size == 0:
             raise Exception("Failed to get file size, download aborted.")
 
-        downloads_manager[user_id] = {"downloaded": 0}
-
         # Retry logic for robustness
         for attempt in range(1, max_retries + 1):
             try:
-                file_path = await asyncio.create_task(download(download_link, user_id))
+                file_path = await asyncio.create_task(download(download_link, user_id, reply_msg, video_title, user_mention))
                 break  # Exit loop if successful
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
@@ -117,11 +151,12 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
         # Send completion message
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-        return file_path, None, video_title, None  # No duration in response
+        return file_path, thumb_url, video_title, None  # No duration in response
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
+
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
