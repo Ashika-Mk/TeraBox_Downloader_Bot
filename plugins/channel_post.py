@@ -24,6 +24,7 @@ from database.db_premium import *
 from config import *
 from plugins.FORMATS import *
 from plugins.query import *
+from plugins.start import *
 from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid
 from datetime import datetime, timedelta
 from pytz import timezone
