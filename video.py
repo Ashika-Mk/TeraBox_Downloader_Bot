@@ -35,21 +35,17 @@ import mmap
 from shutil import which
 import subprocess
 
-import requests
-import time
-import logging
-from telegram.constants import ParseMode
-
-def download_video(url, user_id, user_mention, reply_msg):
+async def download_video(url, reply_msg):
     try:
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        response = requests.get(f"https://terabox.web.id/url?url={url}&token=rohit95")
-        if response.status_code != 200:
-            raise Exception("Failed to fetch video details.")
-        
-        data = response.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://terabox.web.id/url?url={url}&token=rohit95") as response:
+                if response.status != 200:
+                    raise Exception("Failed to fetch video details.")
+                data = await response.json()
+
         if not isinstance(data, list) or not data:
             raise Exception("Invalid API response format.")
 
@@ -62,6 +58,7 @@ def download_video(url, user_id, user_mention, reply_msg):
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
 
+        # Sanitize filename
         safe_title = video_title.replace(" ", "_").replace("/", "_").replace("\\", "_")
         file_path = f"{safe_title}"
         thumb_path = None
@@ -69,13 +66,13 @@ def download_video(url, user_id, user_mention, reply_msg):
         # Download thumbnail
         if thumb_url:
             thumb_path = f"{safe_title}.jpg"
-            thumb_resp = requests.get(thumb_url, stream=True)
-            if thumb_resp.status_code == 200:
-                with open(thumb_path, "wb") as f:
-                    f.write(thumb_resp.content)
-                logging.info(f"Thumbnail downloaded: {thumb_path}")
-            else:
-                thumb_path = None
+            async with session.get(thumb_url) as response:
+                if response.status == 200:
+                    async with aiofiles.open(thumb_path, "wb") as f:
+                        await f.write(await response.read())
+                    logging.info(f"Thumbnail downloaded: {thumb_path}")
+                else:
+                    thumb_path = None  # Thumbnail download failed
 
         if file_size == 0:
             raise Exception("Failed to get file size, download aborted.")
@@ -84,13 +81,13 @@ def download_video(url, user_id, user_mention, reply_msg):
         downloaded_size = 0
         last_update_time = start_time
 
-        with requests.get(download_link, stream=True) as r, open(file_path, "wb") as f:
-            if r.status_code != 200:
-                raise Exception(f"Failed to start download. HTTP {r.status_code}")
+        async with session.get(download_link) as response:
+            if response.status != 200:
+                raise Exception(f"Failed to start download. HTTP {response.status}")
 
-            for chunk in r.iter_content(chunk_size=5 * 1024 * 1024):  # 5MB chunks
-                if chunk:
-                    f.write(chunk)
+            async with aiofiles.open(file_path, "wb") as file:
+                async for chunk in response.content.iter_any():
+                    await file.write(chunk)
                     downloaded_size += len(chunk)
 
                     # Update progress every 5 seconds
@@ -103,7 +100,7 @@ def download_video(url, user_id, user_mention, reply_msg):
                         eta_str = time.strftime("%M:%S", time.gmtime(eta))
                         file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
 
-                        reply_msg.edit_text(
+                        await reply_msg.edit_text(
                             f"📥 Downloading: {video_title}\n"
                             f"📊 Progress: `{progress:.2f}%`\n"
                             f"📦 File Size: `{file_size_str}`\n"
@@ -120,7 +117,7 @@ def download_video(url, user_id, user_mention, reply_msg):
         speed_str = f"{(file_size / total_time) / (1024 * 1024):.2f} MB/s"
         file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
 
-        reply_msg.edit_text(
+        await reply_msg.edit_text(
             f"✅ Download Complete!\n📂 {video_title}\n📦 Size: `{file_size_str}`\n🚀 Speed: `{speed_str}`",
             parse_mode=ParseMode.MARKDOWN
         )
