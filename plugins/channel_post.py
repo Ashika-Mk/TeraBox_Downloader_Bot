@@ -39,7 +39,6 @@ db_channel_id=CHANNEL_ID
 
 async def handle_message(client: Client, message: Message):
     user_id = message.from_user.id
-    update = update.from_user.id
     user_mention = message.from_user.mention
     message_text = message.text.strip() if message.text else ""
 
@@ -51,6 +50,7 @@ async def handle_message(client: Client, message: Message):
             logging.error(f"Failed to add user {user_id} to the database: {e}")
     # ✅ Check Force Subscription
     if not await is_subscribed(update, client, message):
+        update = update.from_user.id
         return await not_joined(client, message)
 
     # Fetch user and feature settings
