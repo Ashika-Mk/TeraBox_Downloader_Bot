@@ -36,13 +36,13 @@ from shutil import which
 import subprocess
 
 
+
 import os
 import aiohttp
 import aiofiles
 import random
 import asyncio
 import logging
-import time
 
 TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "rohit95"
@@ -54,64 +54,30 @@ async def fetch_json(url: str) -> dict:
         async with session.get(url) as resp:
             return await resp.json()
 
-async def download_thumbnail(thumb_url: str, user_id: int) -> str:
-    """Download the thumbnail image if available."""
-    dir_path = 'Thumbnails'
-    os.makedirs(dir_path, exist_ok=True)
-
-    thumb_path = f"{dir_path}/{user_id}_{random.randint(1000, 9999)}.jpg"
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(thumb_url) as resp:
-            if resp.status != 200:
-                logging.warning("Failed to download thumbnail.")
-                return None
-            
-            async with aiofiles.open(thumb_path, 'wb') as f:
-                await f.write(await resp.read())
-
-    return thumb_path
-
-async def download(url: str, user_id: int, file_size: int, reply_msg) -> str:
+async def download(url: str, user_id: int) -> str:
     dir_path = 'DL'
     os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
 
-    path = f'{dir_path}/{user_id}_{random.randint(1000,9999)}.mp4'  # Prevent overwrite  
+    path = f'{dir_path}/{user_id}_{random.randint(1000,9999)}.mp4'  # Prevent overwrite
 
-    # Get fresh cookies for every request  
-    cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")  
+    # Get fresh cookies for every request
+    cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
 
     async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=900),  # 15-minute timeout  
-        cookies=cookies  
+        timeout=aiohttp.ClientTimeout(total=900),  # 15-minute timeout
+        cookies=cookies
     ) as session:
         async with session.get(url) as resp:
             if resp.status != 200:
                 raise Exception(f"Failed to fetch video: HTTP {resp.status}")
 
             async with aiofiles.open(path, 'wb') as f:
-                chunk_size = 10 * 1024 * 1024  # 10MB chunks  
-                downloads_manager[user_id] = {"downloaded": 0, "start_time": time.time()}
-
                 while True:
-                    chunk = await resp.content.read(chunk_size)
+                    chunk = await resp.content.read(10 * 1024 * 1024)  # 10MB chunks
                     if not chunk:
                         break
                     await f.write(chunk)
                     downloads_manager[user_id]['downloaded'] += len(chunk)
-
-                    # Calculate estimated time
-                    elapsed_time = time.time() - downloads_manager[user_id]["start_time"]
-                    remaining_bytes = file_size - downloads_manager[user_id]['downloaded']
-                    eta = remaining_bytes / (downloads_manager[user_id]['downloaded'] / elapsed_time) if elapsed_time > 0 else 0
-
-                    # Update progress
-                    progress = (downloads_manager[user_id]['downloaded'] / file_size) * 100
-                    await reply_msg.edit_text(
-                        f"⬇️ Downloading... {progress:.2f}%\n"
-                        f"📂 {downloads_manager[user_id]['downloaded'] / (1024 * 1024):.2f} MB / {file_size / (1024 * 1024):.2f} MB\n"
-                        f"⏳ ETA: {eta:.2f} sec"
-                    )
 
     return path
 
@@ -119,15 +85,15 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
     try:
         logging.info(f"Fetching video info: {url}")
 
-        # Fetch video details  
-        api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token={TERABOX_API_TOKEN}")  
+        # Fetch video details
+        api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token={TERABOX_API_TOKEN}")
 
         if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
             raise Exception("Invalid API response format.")
 
-        # Extract details from response  
+        # Extract details from response
         data = api_response[0]
-        download_link = data["link"] + f"&random={random.randint(1, 10)}"  # Bypass caching  
+        download_link = data["link"] + f"&random={random.randint(1, 10)}"  # Bypass caching
         video_title = data["filename"]
         file_size = data.get("size", 0)
         thumb_url = data.get("thumbnail")
@@ -139,34 +105,25 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
         downloads_manager[user_id] = {"downloaded": 0}
 
-        # Download thumbnail if available
-        thumb_path = None
-        if thumb_url:
-            thumb_path = await download_thumbnail(thumb_url, user_id)
-
-        # Retry logic for robustness  
+        # Retry logic for robustness
         for attempt in range(1, max_retries + 1):
             try:
-                file_path = await asyncio.create_task(download(download_link, user_id, file_size, reply_msg))
-                break  # Exit loop if successful  
+                file_path = await asyncio.create_task(download(download_link, user_id))
+                break  # Exit loop if successful
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
                 if attempt == max_retries:
-                    raise e  # Raise error if all retries fail  
-                await asyncio.sleep(3)  # Wait before retrying  
+                    raise e  # Raise error if all retries fail
+                await asyncio.sleep(3)  # Wait before retrying
 
         # Send completion message
-        message_text = f"✅ Download Complete!\n📂 {video_title}"
-        if thumb_path:
-            await reply_msg.reply_photo(photo=thumb_path, caption=message_text)
-        else:
-            await reply_msg.edit_text(message_text)
-
-        return file_path, thumb_path, video_title, None  # No duration in response  
+        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+        return file_path, None, video_title, None  # No duration in response
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
+
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
