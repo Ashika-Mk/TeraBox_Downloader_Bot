@@ -35,7 +35,6 @@ import mmap
 from shutil import which
 import subprocess
 
-
 import os
 import aiohttp
 import aiofiles
@@ -53,19 +52,38 @@ async def fetch_json(url: str) -> dict:
         async with session.get(url) as resp:
             return await resp.json()
 
+async def download_thumbnail(url: str, user_id: int) -> str:
+    """Downloads the thumbnail image and returns its local file path."""
+    dir_path = 'thumbnails'
+    os.makedirs(dir_path, exist_ok=True)  # Ensure directory exists
+
+    thumb_path = os.path.join(dir_path, f"{user_id}_thumb.jpg")
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                logging.warning(f"Failed to fetch thumbnail: HTTP {resp.status}")
+                return None  # Return None if the download fails
+
+            async with aiofiles.open(thumb_path, 'wb') as f:
+                await f.write(await resp.read())
+
+    return thumb_path
+
 async def download(url: str, filename: str, user_id: int) -> str:
+    """Downloads the video and returns its local file path."""
     dir_path = 'DL'
-    os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
+    os.makedirs(dir_path, exist_ok=True)  # Ensure directory exists
 
-    # Sanitize filename to prevent path issues
+    # Sanitize filename
     safe_filename = filename.replace(" ", "_").replace("/", "_").replace("\\", "_")
-    path = os.path.join(dir_path, f"{user_id}_{safe_filename}")  # Save with original filename
+    path = os.path.join(dir_path, f"{user_id}_{safe_filename}")
 
-    # Get fresh cookies for every request
+    # Get fresh cookies
     cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
 
     async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=900),  # 15-minute timeout
+        timeout=aiohttp.ClientTimeout(total=900),
         cookies=cookies
     ) as session:
         async with session.get(url) as resp:
@@ -92,9 +110,9 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
             raise Exception("Invalid API response format.")
 
-        # Extract details from response
+        # Extract details
         data = api_response[0]
-        download_link = data["link"] + f"&random={random.randint(1, 10)}"  # Bypass caching
+        download_link = data["link"] + f"&random={random.randint(1, 10)}"
         video_title = data["filename"]
         file_size = data.get("size", 0)
         thumb_url = data.get("thumbnail")
@@ -106,26 +124,43 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
         downloads_manager[user_id] = {"downloaded": 0}
 
-        # Retry logic for robustness
+        # Download the thumbnail (if available)
+        thumbnail_path = None
+        if thumb_url:
+            thumbnail_path = await download_thumbnail(thumb_url, user_id)
+
+        # Retry logic
         for attempt in range(1, max_retries + 1):
             try:
                 file_path = await asyncio.create_task(download(download_link, video_title, user_id))
-                break  # Exit loop if successful
+                break
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
                 if attempt == max_retries:
-                    raise e  # Raise error if all retries fail
-                await asyncio.sleep(3)  # Wait before retrying
+                    raise e
+                await asyncio.sleep(3)
 
         # Send completion message
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
 
-        return file_path, thumb_url, video_title, None  # No duration in response
+        # ✅ Delete files after processing
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logging.info(f"File deleted: {file_path}")
+
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+                logging.info(f"Thumbnail deleted: {thumbnail_path}")
+
+        except Exception as e:
+            logging.warning(f"Failed to delete file: {e}")
+
+        return None, thumbnail_path, video_title, None  # Thumbnail is downloaded locally
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
-
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
