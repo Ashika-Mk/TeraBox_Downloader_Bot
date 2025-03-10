@@ -35,7 +35,7 @@ import mmap
 from shutil import which
 import subprocess
 
-async def download_video(url, reply_msg):
+async def download_video(url, user_id, user_mention, reply_msg):
     try:
         logging.info(f"Fetching video info: {url}")
 
