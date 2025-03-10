@@ -47,7 +47,10 @@ async def fetch_json(url: str) -> dict:
             return await resp.json()
 
 async def download(url: str, user_id: int) -> str:
-    path = f'DL/{user_id}.mp4'
+    dir_path = 'DL'
+    os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
+
+    path = f'{dir_path}/{user_id}.mp4'
 
     # Fetch cookies dynamically inside the function
     cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
