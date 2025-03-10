@@ -40,7 +40,7 @@ import time
 import logging
 from telegram.constants import ParseMode
 
-def download_video(url, reply_msg):
+def download_video(url, user_id, user_mention, reply_msg):
     try:
         logging.info(f"Fetching video info: {url}")
 
