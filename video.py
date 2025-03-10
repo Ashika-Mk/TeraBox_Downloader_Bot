@@ -35,14 +35,13 @@ import mmap
 from shutil import which
 import subprocess
 
-
 async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
     try:
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://terabox.web.id/url?url={url}&token=rohit95") as response:
+            async with session.get(f"https://tbox-vids.vercel.app/api?data={url}") as response:
                 if response.status != 200:
                     raise Exception("Failed to fetch video details.")
                 data = await response.json()
@@ -87,6 +86,9 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
             raise Exception("Failed to get file size, download aborted.")
 
         start_time = time.time()
+        downloaded_size = 0
+        last_update_time = start_time
+        last_downloaded = 0
 
         # **Retry Mechanism**
         for attempt in range(max_retries):
@@ -97,7 +99,34 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
                             raise Exception(f"Failed to start download. HTTP {response.status}")
 
                         async with aiofiles.open(file_path, "wb") as file:
-                            await file.write(await response.read())  # Download in one shot
+                            while True:
+                                chunk = await response.content.read(5 * 1024 * 1024)  # 5MB chunks
+                                if not chunk:
+                                    break
+                                await file.write(chunk)
+                                downloaded_size += len(chunk)
+                                last_downloaded += len(chunk)
+
+                                # Update progress every 5 seconds
+                                if time.time() - last_update_time > 5:
+                                    progress = min((downloaded_size / file_size) * 100, 100)  # Ensure max 100%
+                                    speed = last_downloaded / (time.time() - last_update_time)
+                                    eta = (file_size - downloaded_size) / speed if speed > 0 else 0
+
+                                    speed_str = f"{speed / (1024 * 1024):.2f} MB/s"
+                                    eta_str = time.strftime("%M:%S", time.gmtime(eta))
+                                    file_size_str = f"{file_size / (1024 * 1024):.2f} MB"
+
+                                    await reply_msg.edit_text(
+                                        f"📥 Downloading: {video_title}\n"
+                                        f"📊 Progress: `{progress:.2f}%`\n"
+                                        f"📦 File Size: `{file_size_str}`\n"
+                                        f"🚀 Speed: `{speed_str}`\n"
+                                        f"⏳ ETA: `{eta_str}`",
+                                        parse_mode=ParseMode.MARKDOWN
+                                    )
+                                    last_update_time = time.time()
+                                    last_downloaded = 0
 
                 logging.info(f"Download complete: {file_path}")
 
@@ -123,7 +152,6 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
-
 
 async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
