@@ -36,7 +36,6 @@ from shutil import which
 import subprocess
 
 
-
 import os
 import aiohttp
 import aiofiles
@@ -54,11 +53,13 @@ async def fetch_json(url: str) -> dict:
         async with session.get(url) as resp:
             return await resp.json()
 
-async def download(url: str, user_id: int) -> str:
+async def download(url: str, filename: str, user_id: int) -> str:
     dir_path = 'DL'
     os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
 
-    path = f'{dir_path}/{user_id}_{random.randint(1000,9999)}.mp4'  # Prevent overwrite
+    # Sanitize filename to prevent path issues
+    safe_filename = filename.replace(" ", "_").replace("/", "_").replace("\\", "_")
+    path = os.path.join(dir_path, f"{user_id}_{safe_filename}")  # Save with original filename
 
     # Get fresh cookies for every request
     cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
@@ -108,7 +109,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         # Retry logic for robustness
         for attempt in range(1, max_retries + 1):
             try:
-                file_path = await asyncio.create_task(download(download_link, user_id))
+                file_path = await asyncio.create_task(download(download_link, video_title, user_id))
                 break  # Exit loop if successful
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
@@ -118,7 +119,8 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
         # Send completion message
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-        return file_path, None, video_title, None  # No duration in response
+
+        return file_path, thumb_url, video_title, None  # No duration in response
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
