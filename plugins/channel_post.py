@@ -48,8 +48,9 @@ async def handle_message(client: Client, message: Message):
         except Exception as e:
             logging.error(f"Failed to add user {user_id} to the database: {e}")
     # ✅ Check Force Subscription
-    if not await is_subscribed(client, message):
+    if not await is_subscribed(None, client, message):
         return await not_joined(client, message)
+
     # Fetch user and feature settings
     is_premium = await is_premium_user(user_id)
     verify_status = await db.get_verify_status(user_id)
