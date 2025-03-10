@@ -47,9 +47,9 @@ async def is_subscribed(client, update):
         print("Error: update or update.from_user is None")  # Debugging
         return False
 
-    Channel_ids = await db.get_all_channels() or []
+    Channel_ids = await db.get_all_channels() or []  # Ensure it's always a list
 
-    if not Channel_ids:
+    if not Channel_ids:  # If empty, no need to check subscription
         return True
 
     user_id = update.from_user.id
@@ -60,7 +60,7 @@ async def is_subscribed(client, update):
     if len(Channel_ids) == 1:
         return await is_userJoin(client, user_id, Channel_ids[0])
 
-    tasks = [is_userJoin(client, user_id, ids) for ids in Channel_ids if ids]
+    tasks = [is_userJoin(client, user_id, channel_id) for channel_id in Channel_ids if channel_id]
     results = await asyncio.gather(*tasks)
 
     return all(results)
