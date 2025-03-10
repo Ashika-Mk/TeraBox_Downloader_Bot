@@ -109,10 +109,10 @@ REPLY_ERROR = """<code>Use this command as a replay to any telegram message with
 chat_data_cache = {}
 
 async def not_joined(client: Client, message: Message):
-    temp = await message.reply("<b>Checking Subscription...</b>")
+    temp = await message.reply(f"<b>??</b>")
+
     user_id = message.from_user.id
-    bot_info = await client.get_me()
-    bot_username = bot_info.username  
+
     REQFSUB = await db.get_request_forcesub()
     buttons = []
     count = 0
@@ -154,7 +154,7 @@ async def not_joined(client: Client, message: Message):
                     return await temp.edit(f"<b><i>! Eʀʀᴏʀ, Cᴏɴᴛᴀᴄᴛ ᴅᴇᴠᴇʟᴏᴘᴇʀ ᴛᴏ sᴏʟᴠᴇ ᴛʜᴇ ɪssᴜᴇs @rohit_1888</i></b>\n<blockquote expandable><b>Rᴇᴀsᴏɴ:</b> {e}</blockquote>")
 
         try:
-            buttons.append([InlineKeyboardButton(text='♻️ Tʀʏ Aɢᴀɪɴ', url=f"https://t.me/{bot_username}?start={message.command[1]}")])
+            buttons.append([InlineKeyboardButton(text='♻️ Tʀʏ Aɢᴀɪɴ', url=f"https://t.me/{client.username}?start={message.command[1]}")])
         except IndexError:
             pass
 
@@ -168,13 +168,12 @@ async def not_joined(client: Client, message: Message):
                 id=message.from_user.id
             ),
             reply_markup=InlineKeyboardMarkup(buttons),
-    message_effect_id=5104841245755180586  #🔥 Add the effect ID here
         )
+
     except Exception as e:
         print(f"Error: {e}")  # Print the error message for debugging
         # Optionally, send an error message to the user or handle further actions here
         await temp.edit(f"<b><i>! Eʀʀᴏʀ, Cᴏɴᴛᴀᴄᴛ ᴅᴇᴠᴇʟᴏᴘᴇʀ ᴛᴏ sᴏʟᴠᴇ ᴛʜᴇ ɪssᴜᴇs @rohit_1888</i></b>\n<blockquote expandable><b>Rᴇᴀsᴏɴ:</b> {e}</blockquote>")
-
 
 
 @Bot.on_message(filters.command('users') & filters.private & filters.user(OWNER_ID))
