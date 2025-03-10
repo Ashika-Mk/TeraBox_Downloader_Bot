@@ -42,6 +42,7 @@ import aiofiles
 import random
 import asyncio
 import logging
+import time
 
 TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "rohit95"
@@ -53,7 +54,7 @@ async def fetch_json(url: str) -> dict:
         async with session.get(url) as resp:
             return await resp.json()
 
-async def download(url: str, user_id: int) -> str:
+async def download(url: str, user_id: int, file_size: int, reply_msg) -> str:
     dir_path = 'DL'
     os.makedirs(dir_path, exist_ok=True)  # Ensure the directory exists
 
@@ -71,12 +72,31 @@ async def download(url: str, user_id: int) -> str:
                 raise Exception(f"Failed to fetch video: HTTP {resp.status}")
 
             async with aiofiles.open(path, 'wb') as f:
+                chunk_size = 10 * 1024 * 1024  # 10MB chunks
+                downloads_manager[user_id] = {"downloaded": 0, "start_time": time.time()}
+
                 while True:
-                    chunk = await resp.content.read(10 * 1024 * 1024)  # 10MB chunks
+                    chunk = await resp.content.read(chunk_size)
                     if not chunk:
                         break
+
                     await f.write(chunk)
                     downloads_manager[user_id]['downloaded'] += len(chunk)
+
+                    # Calculate download speed and estimated time
+                    elapsed_time = time.time() - downloads_manager[user_id]["start_time"]
+                    speed = downloads_manager[user_id]['downloaded'] / elapsed_time if elapsed_time > 0 else 0
+                    remaining_bytes = file_size - downloads_manager[user_id]['downloaded']
+                    eta = remaining_bytes / speed if speed > 0 else 0
+
+                    # Update progress
+                    progress = (downloads_manager[user_id]['downloaded'] / file_size) * 100
+                    await reply_msg.edit_text(
+                        f"⬇️ Downloading... {progress:.2f}%\n"
+                        f"📂 {downloads_manager[user_id]['downloaded'] / (1024 * 1024):.2f} MB / {file_size / (1024 * 1024):.2f} MB\n"
+                        f"⚡ Speed: {speed / (1024 * 1024):.2f} MB/s\n"
+                        f"⏳ ETA: {eta:.2f} sec"
+                    )
 
     return path
 
@@ -107,7 +127,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         # Retry logic for robustness
         for attempt in range(1, max_retries + 1):
             try:
-                file_path = await asyncio.create_task(download(download_link, user_id))
+                file_path = await asyncio.create_task(download(download_link, user_id, file_size, reply_msg))
                 break  # Exit loop if successful
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
@@ -116,8 +136,11 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
                 await asyncio.sleep(3)  # Wait before retrying
 
         # Send completion message
-        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-        return file_path, None, video_title, None  # No duration in response
+        await reply_msg.edit_text(
+            f"✅ Download Complete!\n📂 {video_title}",
+            reply_markup=thumb_url  # Send thumbnail if available
+        )
+        return file_path, thumb_url, video_title, None  # No duration in response
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
