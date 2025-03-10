@@ -50,7 +50,7 @@ async def is_subscribed(client, update):
 
     user_id = update.from_user.id
 
-    if user_id in Var.ADMINS:
+    if any([user_id == OWNER_ID, await db.admin_exist(user_id)]):
         return True
 
     # Handle the case for a single channel directly (no need for gather)
@@ -261,6 +261,6 @@ def get_readable_time(seconds: int) -> str:
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-subscribed = filters.create(is_subscribed)
+#subscribed = filters.create(is_subscribed)
 is_admin = filters.create(check_admin)
 banUser = filters.create(check_banUser)
