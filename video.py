@@ -41,11 +41,11 @@ async def fetch_json(url: str) -> dict:
             return await resp.json()
 
 
-COOKIES = await fetch_json("https://terabox.web.id/gc?token=rohit95")
-
 async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
     try:
         logging.info(f"Fetching video info: {url}")
+
+        COOKIES = await fetch_json("https://terabox.web.id/gc?token=rohit95")
 
         # Fetch video details
         async with aiohttp.ClientSession() as session:
