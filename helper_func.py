@@ -43,11 +43,14 @@ async def check_admin(filter, client, update):
 
 # Check user subscription in Channels in a more optimized way
 async def is_subscribed(client, update):
-    if not update or not isinstance(update, Message) or not getattr(update, "from_user", None):
-        return False  # Ensures update is a valid Message object with a user
+    # Ensure 'update' is a valid Message object
+    if not update or not isinstance(update, Message) or not update.from_user:
+        print("Error: update or from_user is None")  # Debugging
+        return False  # Prevents crashing if update is None
 
-    Channel_ids = await db.get_all_channels()
-    if not Channel_ids:  
+    Channel_ids = await db.get_all_channels() or []  # Ensure it's a list
+
+    if not Channel_ids:
         return True  # No channels to check, assume subscribed
 
     user_id = update.from_user.id
