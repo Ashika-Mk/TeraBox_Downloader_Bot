@@ -28,7 +28,7 @@ from pytz import timezone
 # Enable logging
 logging.basicConfig(level=logging.INFO)
 
-@Bot.on_message(filters.command('start') & filters.private & subscribed)
+@Bot.on_message(filters.command('start') & filters.private)
 async def start_command(client: Client, message: Message):
     id = message.from_user.id
     user_id = message.from_user.id
