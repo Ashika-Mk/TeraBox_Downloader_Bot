@@ -174,7 +174,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
 
-async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
+async def upload_video(client, file_path, thumbnail_url, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
         file_size = os.path.getsize(file_path)
         uploaded = 0
@@ -193,6 +193,15 @@ async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg
 
         if CHNL_BTN:
             button_name, button_link = await db.get_channel_button_link()
+
+        # **Download the Thumbnail (Fix)**
+        thumbnail_path = None
+        if thumbnail_url:
+            try:
+                thumbnail_path = await download_thumbnail(thumbnail_url)
+            except Exception as e:
+                logging.warning(f"Failed to download thumbnail: {e}")
+                thumbnail_path = None  # Avoid crash if thumbnail download fails
 
         async def progress(current, total):
             nonlocal uploaded, last_update_time
@@ -226,7 +235,7 @@ async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg
                 chat_id=db_channel_id,
                 video=file,
                 caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
-                thumb=thumbnail_path,
+                thumb=thumbnail_path if thumbnail_path else None,  # Use local file
                 progress=progress
             )
 
@@ -253,10 +262,10 @@ async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg
         if AUTO_DEL:
             asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
-        # Clean up files and delete messages
+        # **Clean up files**
         os.remove(file_path)
         if thumbnail_path:
-            os.remove(thumbnail_path)
+            os.remove(thumbnail_path)  # Delete downloaded thumbnail
 
         await message.delete()
         await reply_msg.delete()
@@ -270,5 +279,4 @@ async def upload_video(client, file_path, thumbnail_path, video_title, reply_msg
 
     except Exception as e:
         logging.error(f"Error during upload: {e}", exc_info=True)
-        #await reply_msg.reply_text("⚠️ Upload failed. Please try again later.")
         return None
