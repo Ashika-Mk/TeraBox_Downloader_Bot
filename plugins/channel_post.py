@@ -113,7 +113,7 @@ async def handle_message(client: Client, message: Message):
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            await upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+            await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
             await premium_msg.delete()
         except Exception as e:
             logging.error(f"Download error: {e}")
@@ -128,7 +128,7 @@ async def handle_message(client: Client, message: Message):
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            await upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+            await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
             await verified_msg.delete()
         except Exception as e:
             logging.error(f"Download error: {e}")
@@ -153,7 +153,7 @@ async def handle_message(client: Client, message: Message):
                 if file_path is None:
                     return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-                await upload_video(client, file_path, thumbnail_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+                await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
                 await free_msg.delete()
             except Exception as e:
                 logging.error(f"Download error: {e}")
