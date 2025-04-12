@@ -149,7 +149,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         download_link = data["link"] + f"&random={random.randint(1, 10)}"
         video_title = data["filename"]
         file_size = int(data.get("size", 0))  # Convert to int to ensure proper type
-        thumb_url = THUMBNAIL  # Use default if missing
+        thumb_url = data["thumbnail"] # Use default if missing
 
         logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
 
