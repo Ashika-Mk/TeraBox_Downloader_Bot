@@ -43,6 +43,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime
+from collections import defaultdict
 
 TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "rohit95"
@@ -174,109 +175,147 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
 
-async def upload_video(client, file_path, thumbnail_url, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
+uploads_manager = {}
+user_semaphores = defaultdict(lambda: asyncio.Semaphore(4))  # Limit 4 uploads/user
+
+def generate_thumbnail(video_path: str, output_path: str, time_position: int = 10) -> str:
     try:
-        file_size = os.path.getsize(file_path)
-        uploaded = 0
-        start_time = datetime.now()
-        last_update_time = time.time()
-
-        # Default settings
-        AUTO_DEL = DEL_TIMER = HIDE_CAPTION = CHNL_BTN = PROTECT_MODE = False
-        button_name = button_link = None
-
-        # Fetch configurations from DB
-        AUTO_DEL, DEL_TIMER, HIDE_CAPTION, CHNL_BTN, PROTECT_MODE = await asyncio.gather(
-            db.get_auto_delete(), db.get_del_timer(), db.get_hide_caption(),
-            db.get_channel_button(), db.get_protect_content()
+        subprocess.run(
+            [
+                "ffmpeg", "-ss", str(time_position), "-i", video_path,
+                "-vframes", "1", "-q:v", "2", "-vf", "scale=320:-1",
+                output_path
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True
         )
+        return output_path if os.path.exists(output_path) else None
+    except Exception as e:
+        logging.warning(f"Thumbnail generation failed: {e}")
+        return None
 
-        if CHNL_BTN:
-            button_name, button_link = await db.get_channel_button_link()
+def get_video_duration(file_path: str) -> int:
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                file_path
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        return int(float(result.stdout.strip()))
+    except Exception as e:
+        logging.warning(f"Failed to get duration: {e}")
+        return 0
 
-        # **Download the Thumbnail (Fix)**
-        thumbnail_path = None
-        if thumbnail_url:
-            try:
-                thumbnail_path = await download_thumbnail(thumbnail_url)
-            except Exception as e:
-                logging.warning(f"Failed to download thumbnail: {e}")
-                thumbnail_path = None  # Avoid crash if thumbnail download fails
+async def upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
+    async with user_semaphores[user_id]:  # Restrict per user
+        try:
+            uploads_manager[user_id] = file_path
+            file_size = os.path.getsize(file_path)
+            uploaded = 0
+            start_time = datetime.now()
+            last_update_time = time.time()
 
-        async def progress(current, total):
-            nonlocal uploaded, last_update_time
-            uploaded = current
-            percentage = (current / total) * 100
-            elapsed_time_seconds = (datetime.now() - start_time).total_seconds()
+            # Config fetch
+            AUTO_DEL, DEL_TIMER, HIDE_CAPTION, CHNL_BTN, PROTECT_MODE = await asyncio.gather(
+                db.get_auto_delete(), db.get_del_timer(), db.get_hide_caption(),
+                db.get_channel_button(), db.get_protect_content()
+            )
+            button_name, button_link = await db.get_channel_button_link() if CHNL_BTN else (None, None)
 
-            if time.time() - last_update_time > 2:
-                progress_text = format_progress_bar(
-                    filename=video_title,
-                    percentage=percentage,
-                    done=current,
-                    total_size=total,
-                    status="Uploading",
-                    eta=(total - current) / (current / elapsed_time_seconds) if current > 0 else 0,
-                    speed=current / elapsed_time_seconds if current > 0 else 0,
-                    elapsed=elapsed_time_seconds,
-                    user_mention=user_mention,
-                    user_id=user_id,
-                    aria2p_gid=""
-                )
-                try:
-                    await reply_msg.edit_text(progress_text)
-                    last_update_time = time.time()
-                except Exception as e:
-                    logging.warning(f"Error updating progress message: {e}")
+            # Generate thumbnail
+            thumbnail_path = f"{file_path}.jpg"
+            thumbnail_path = generate_thumbnail(file_path, thumbnail_path)
 
-        # **Upload video to the database channel**
-        with open(file_path, 'rb') as file:
+            # Fix duration
+            duration = get_video_duration(file_path)
+
+            # Upload progress
+            async def progress(current, total):
+                nonlocal uploaded, last_update_time
+                uploaded = current
+                percentage = (current / total) * 100
+                elapsed = (datetime.now() - start_time).total_seconds()
+                if time.time() - last_update_time > 2:
+                    eta = (total - current) / (current / elapsed) if current > 0 else 0
+                    speed = current / elapsed if current > 0 else 0
+                    progress_text = format_progress_bar(
+                        filename=video_title,
+                        percentage=percentage,
+                        done=current,
+                        total_size=total,
+                        status="Uploading",
+                        eta=eta,
+                        speed=speed,
+                        elapsed=elapsed,
+                        user_mention=user_mention,
+                        user_id=user_id,
+                        aria2p_gid=""
+                    )
+                    try:
+                        await reply_msg.edit_text(progress_text)
+                        last_update_time = time.time()
+                    except Exception as e:
+                        logging.warning(f"Progress update failed: {e}")
+
+            # Upload to DB channel
             collection_message = await client.send_video(
                 chat_id=db_channel_id,
-                video=file,
+                video=file_path,
                 caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
-                thumb=thumbnail_path if thumbnail_path else None,  # Use local file
+                thumb=thumbnail_path if thumbnail_path else None,
+                duration=duration,
+                supports_streaming=True,
                 progress=progress
             )
 
-        # **Copy the video from the DB channel to user (No forward header)**
-        copied_msg = await client.copy_message(
-            chat_id=message.chat.id,
-            from_chat_id=db_channel_id,
-            message_id=collection_message.id
-        )
+            # Copy to user chat
+            copied_msg = await client.copy_message(
+                chat_id=message.chat.id,
+                from_chat_id=db_channel_id,
+                message_id=collection_message.id
+            )
 
-        # Prepare customized caption & buttons
-        original_caption = f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
-        caption = "" if HIDE_CAPTION else original_caption
-        reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=button_name, url=button_link)]]) if CHNL_BTN else None
+            # Final caption + button
+            caption = "" if HIDE_CAPTION else f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
+            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=button_name, url=button_link)]]) if CHNL_BTN else None
 
-        # Edit caption of copied message
-        await copied_msg.edit_caption(
-            caption=caption,
-            parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup
-        )
+            await copied_msg.edit_caption(
+                caption=caption,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
 
-        # Handle auto-delete
-        if AUTO_DEL:
-            asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
+            # Auto delete
+            if AUTO_DEL:
+                asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
-        # **Clean up files**
-        os.remove(file_path)
-        if thumbnail_path:
-            os.remove(thumbnail_path)  # Delete downloaded thumbnail
+            # Cleanup
+            os.remove(file_path)
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+            await message.delete()
+            await reply_msg.delete()
+            #try:
+                #await reply_msg.delete()
+            #except Exception as e:
+                #logging.warning(f"Failed to delete reply_msg: {e}")
 
-        await message.delete()
-        await reply_msg.delete()
+            # Optional sticker
+            sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
+            await asyncio.sleep(5)
+            await sticker_msg.delete()
 
-        # Send sticker (Optional)
-        sticker_message = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
-        await asyncio.sleep(5)
-        await sticker_message.delete()
+            return collection_message.id
 
-        return collection_message.id
-
-    except Exception as e:
-        logging.error(f"Error during upload: {e}", exc_info=True)
-        return None
+        except Exception as e:
+            logging.error(f"Upload error: {e}", exc_info=True)
+            return None
+        finally:
+            uploads_manager.pop(user_id, None)
