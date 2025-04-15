@@ -28,7 +28,7 @@ def home():
     return "Bot is running"
 
 def run_flask():
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5081)))
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5082)))
 
 def keep_alive():
     t = Thread(target=run_flask)
@@ -49,7 +49,7 @@ aria2 = aria2p.API(
 
 
 class Bot(Client):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super().__init__(
             name="Bot",
             api_hash=API_HASH,
