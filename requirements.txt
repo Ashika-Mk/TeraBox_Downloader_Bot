@@ -1,6 +1,6 @@
 # --- For-Bot-Working --------- #
 pyrogram
-pyrofork
+pyrofork==2.3.45
 TgCrypto
 pyromod
 schedule
