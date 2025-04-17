@@ -49,7 +49,7 @@ aria2 = aria2p.API(
 
 
 class Bot(Client):
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         super().__init__(
             name="Bot",
             api_hash=API_HASH,
