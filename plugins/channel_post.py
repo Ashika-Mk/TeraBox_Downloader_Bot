@@ -48,9 +48,10 @@ async def handle_message(client: Client, message: Message):
             await db.add_user(user_id)
         except Exception as e:
             logging.error(f"Failed to add user {user_id} to the database: {e}")
+
     # ✅ Check Force Subscription
     if not await is_subscribed(client, message):
-# Don't remove This Line From Here. Tg: @rohit_1888 | @Javpostr
+        # Don't remove This Line From Here. Tg: @rohit_1888 | @Javpostr
         return await not_joined(client, message)
 
     # Fetch user and feature settings
@@ -113,7 +114,12 @@ async def handle_message(client: Client, message: Message):
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+            try:
+                await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+            except Exception as e:
+                logging.error(f"Upload error: {e}")
+                return await reply_msg.edit_text("❌ Failed to upload the video.")
+
             await premium_msg.delete()
         except Exception as e:
             logging.error(f"Download error: {e}")
@@ -128,7 +134,12 @@ async def handle_message(client: Client, message: Message):
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+            try:
+                await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+            except Exception as e:
+                logging.error(f"Upload error: {e}")
+                return await reply_msg.edit_text("❌ Failed to upload the video.")
+
             await verified_msg.delete()
         except Exception as e:
             logging.error(f"Download error: {e}")
@@ -136,7 +147,6 @@ async def handle_message(client: Client, message: Message):
 
     # **Free Usage Check**
     elif free_enabled:
-
         if free_count < free_limit:
             await db.update_free_usage(user_id)  # Increment usage count
             remaining_attempts = free_limit - free_count - 1  # Update remaining count
@@ -146,27 +156,37 @@ async def handle_message(client: Client, message: Message):
             )
 
             try:
-                file_path, thumbnail_path, video_title, video_duration = await download_video(
-                    message_text, reply_msg, user_mention, user_id
-                )
+                try:
+                    file_path, thumbnail_path, video_title, video_duration = await download_video(
+                        message_text, reply_msg, user_mention, user_id
+                    )
 
-                if file_path is None:
-                    return await reply_msg.edit_text("Failed to download. The link may be broken.")
+                    if file_path is None:
+                        return await reply_msg.edit_text("Failed to download. The link may be broken.")
+                except Exception as e:
+                    logging.error(f"Download error: {e}")
+                    return await reply_msg.edit_text("❌ API returned a broken link.")
 
-                await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+                try:
+                    await upload_video(
+                        client, file_path, video_title, reply_msg,
+                        db_channel_id, user_mention, user_id, message
+                    )
+                except Exception as e:
+                    logging.error(f"Upload error: {e}")
+                    return await reply_msg.edit_text("❌ Failed to upload the video.")
+
                 await free_msg.delete()
+
             except Exception as e:
-                logging.error(f"Download error: {e}")
-                return await reply_msg.edit_text("❌ API returned a broken link.")
+                logging.error(f"Unexpected error: {e}")
+                return await reply_msg.edit_text("❌ An unexpected error occurred.")
 
         # **Free limit reached cases**
         else:
-    # **Check if shortener API & URL are available**
-            shortener_api = await db.get_shortener_api()
-            shortener_url = await db.get_shortener_url()
-
+            # **Check if shortener API & URL are available**
             if shortener_api and shortener_url:
-        # **If user is not verified or their verification expired**
+                # **If user is not verified or their verification expired**
                 if not verify_status['is_verified'] or (is_verified_recently and not verify_status['is_verified']):
                     token = ''.join(random.choices(rohit.ascii_letters + rohit.digits, k=10))
                     long_url = f"https://telegram.dog/{client.username}?start=verify_{token}"
@@ -190,12 +210,11 @@ async def handle_message(client: Client, message: Message):
                         protect_content=False
                     )
 
-            elif not shortener_api or not shortener_url or is_verified_recently:
-    # **If no shortener API is available → Only show BUY PREMIUM**
-                 return await message.reply(
-                     "⚠️ Free limit exceeded. Please purchase premium.",
-                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
-             )
+            # **If no shortener API is available → Only show BUY PREMIUM**
+            return await message.reply(
+                "⚠️ Free limit exceeded. Please purchase premium.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
+            )
 
     # **Free Usage Disabled & Token Expired/Disabled**
     else:
