@@ -9,39 +9,48 @@ from pyrogram import Client
 from pyrogram.enums import ParseMode
 import sys
 from datetime import datetime
-import pytz
+import pytz  # For Indian Standard Time (IST)
 import aria2p
 from config import *
 from dotenv import load_dotenv
 from database.db_premium import remove_expired_users
+
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+import pyrogram.utils
+
+pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
 
 load_dotenv(".env")
 
+# Rename Flask app instance to avoid conflict
 flask_app = Flask(__name__)
+
 @flask_app.route('/')
 def home():
     return "Bot is running"
 
 def run_flask():
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7872)))
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5050)))
 
 def keep_alive():
     t = Thread(target=run_flask)
-    t.daemon = True
     t.start()
 
 def get_indian_time():
+    """Returns the current time in IST."""
     ist = pytz.timezone("Asia/Kolkata")
     return datetime.now(ist)
 
 aria2 = aria2p.API(
     aria2p.Client(
-        host="http://localhost",
-        port=6800,
-        secret=""
+        host="http://localhost",  # Default aria2 RPC host
+        port=6800,                # Default aria2 RPC port
+        secret=""                 # Set your secret if you configured one
     )
 )
+
 
 class Bot(Client):
     def __init__(self):
@@ -49,66 +58,61 @@ class Bot(Client):
             name="Bot",
             api_hash=API_HASH,
             api_id=APP_ID,
-            plugins={"root": "plugins"},
+            plugins={
+                "root": "plugins"
+            },
             workers=TG_BOT_WORKERS,
             bot_token=TG_BOT_TOKEN
         )
         self.LOGGER = LOGGER
 
-    async def start_bot(self):
+    async def start(self):
         await super().start()
-        self.uptime = get_indian_time()
-
-        for attempt in range(5):
-            try:
-                self.user = await self.get_me()
-                self.set_parse_mode(ParseMode.HTML)
-                self.username = self.user.username
-                db_channel = await self.get_chat(CHANNEL_ID)
-                self.db_channel = db_channel
-                break
-            except Exception as e:
-                self.LOGGER(__name__).warning(f"Startup retry {attempt + 1}/5 failed: {e}")
-                await asyncio.sleep(5)
-        else:
-            self.LOGGER(__name__).error("Failed to start after retries. Shutting down.")
-            sys.exit()
-
-        self.LOGGER(__name__).info(f"Bot Running..! Made by @rohit_1888")
+        usr_bot_me = await self.get_me()
+        self.uptime = get_indian_time()  # Use IST for uptime tracking
 
         try:
-            await self.send_message(OWNER_ID, text=f"<b><blockquote>🤖 Bot Restarted by @rohit_1888</blockquote></b>")
+            db_channel = await self.get_chat(CHANNEL_ID)
+            self.db_channel = db_channel
+        except Exception as e:
+            self.LOGGER(__name__).warning(e)
+            self.LOGGER(__name__).warning(
+                f"Make Sure bot is Admin in DB Channel, and Double check the CHANNEL_ID Value, Current Value {CHANNEL_ID}"
+            )
+            self.LOGGER(__name__).info("\nBot Stopped. @rohit_1888 for support")
+            sys.exit()
+
+        self.set_parse_mode(ParseMode.HTML)
+        self.username = usr_bot_me.username
+        self.LOGGER(__name__).info(f"Bot Running..! Made by @rohit_1888")   
+
+        # Start Web Server
+        app = web.AppRunner(await web_server())
+        await app.setup()
+        await web.TCPSite(app, "0.0.0.0", PORT).start()
+
+        try:
+            await self.send_message(OWNER_ID, text=f"<b><blockquote>🤖 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ by @rohit_1888</blockquote></b>")
         except:
             pass
 
-        asyncio.create_task(self.run_web_server())
-
-    async def run_web_server(self):
-        try:
-            app = web.AppRunner(await web_server())
-            await app.setup()
-            await web.TCPSite(app, "0.0.0.0", PORT).start()
-            self.LOGGER(__name__).info("Web server started.")
-        except Exception as e:
-            self.LOGGER(__name__).error(f"Web server failed: {e}")
-
-    async def stop_bot(self):
+    async def stop(self, *args):
         await super().stop()
         self.LOGGER(__name__).info("Bot stopped.")
 
-async def main():
-    keep_alive()
-    bot = Bot()
-    await bot.start_bot()
+    def run(self):
+        """Run the bot."""
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.start())
+        self.LOGGER(__name__).info("Bot is now running. Thanks to @rohit_1888")
+        try:
+            loop.run_forever()
+        except KeyboardInterrupt:
+            self.LOGGER(__name__).info("Shutting down...")
+        finally:
+            loop.run_until_complete(self.stop())
 
-    try:
-        while True:
-            await asyncio.sleep(5)
-    except (KeyboardInterrupt, SystemExit):
-        await bot.stop_bot()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        LOGGER(__name__).error(f"Fatal error: {e}")
+    keep_alive()
+    Bot().run()
