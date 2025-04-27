@@ -60,75 +60,78 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
         timeout=aiohttp.ClientTimeout(total=1800),
         cookies=cookies
     ) as session:
-        async with session.head(url) as resp:
-            if resp.status not in [200, 206]:
-                if resp.status == 302:
-                    # Handle redirect
-                    redirect_url = resp.headers.get("Location")
-                    logging.info(f"Redirected to {redirect_url}")
-                    url = redirect_url  # Follow the redirection
-                    continue  # Retry with the new URL
-                raise Exception(f"Server error: HTTP {resp.status}")
+        while True:
+            async with session.head(url) as resp:
+                if resp.status not in [200, 206]:
+                    if resp.status == 302:
+                        # Handle redirect
+                        redirect_url = resp.headers.get("Location")
+                        logging.info(f"Redirected to {redirect_url}")
+                        url = redirect_url  # Follow the redirection
+                        continue  # Retry with the new URL
+                    raise Exception(f"Server error: HTTP {resp.status}")
 
-        part_size = file_size // MAX_CONCURRENT_CONNECTIONS
+            part_size = file_size // MAX_CONCURRENT_CONNECTIONS
 
-        async def download_part(start, end, part_num):
-            part_headers = {"Range": f"bytes={start}-{end}"}
-            async with session.get(url, headers=part_headers, allow_redirects=True) as resp:
-                if resp.status not in [206, 200]:
-                    raise Exception(f"Failed part {part_num}: HTTP {resp.status}")
-                async with aiofiles.open(file_path, 'rb+') as f:
-                    await f.seek(start)
-                    while True:
-                        chunk = await resp.content.read(CHUNK_SIZE)
-                        if not chunk:
-                            break
-                        await f.write(chunk)
-                        downloads_manager[download_key]['downloaded'] += len(chunk)
+            async def download_part(start, end, part_num):
+                part_headers = {"Range": f"bytes={start}-{end}"}
+                async with session.get(url, headers=part_headers, allow_redirects=True) as resp:
+                    if resp.status not in [206, 200]:
+                        raise Exception(f"Failed part {part_num}: HTTP {resp.status}")
+                    async with aiofiles.open(file_path, 'rb+') as f:
+                        await f.seek(start)
+                        while True:
+                            chunk = await resp.content.read(CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            await f.write(chunk)
+                            downloads_manager[download_key]['downloaded'] += len(chunk)
 
-        async def update_progress():
-            start_time = datetime.now()
-            last_update_time = 0
-            while downloads_manager.get(download_key):
-                now = time.time()
-                if now - last_update_time > 2:
-                    current = downloads_manager[download_key]['downloaded']
-                    percentage = (current / file_size) * 100
-                    elapsed = (datetime.now() - start_time).total_seconds()
-                    speed = current / elapsed if elapsed > 0 else 0
-                    eta = (file_size - current) / speed if speed > 0 else 0
+            async def update_progress():
+                start_time = datetime.now()
+                last_update_time = 0
+                while downloads_manager.get(download_key):
+                    now = time.time()
+                    if now - last_update_time > 2:
+                        current = downloads_manager[download_key]['downloaded']
+                        percentage = (current / file_size) * 100
+                        elapsed = (datetime.now() - start_time).total_seconds()
+                        speed = current / elapsed if elapsed > 0 else 0
+                        eta = (file_size - current) / speed if speed > 0 else 0
 
-                    progress_text = format_progress_bar(
-                        filename=filename,
-                        percentage=percentage,
-                        done=current,
-                        total_size=file_size,
-                        status="Downloading",
-                        eta=eta,
-                        speed=speed,
-                        elapsed=elapsed,
-                        user_mention=user_mention,
-                        user_id=user_id,
-                        aria2p_gid=""
-                    )
-                    try:
-                        await reply_msg.edit_text(progress_text)
-                    except Exception as e:
-                        logging.warning(f"Progress update error: {e}")
-                    last_update_time = now
-                await asyncio.sleep(1)
+                        progress_text = format_progress_bar(
+                            filename=filename,
+                            percentage=percentage,
+                            done=current,
+                            total_size=file_size,
+                            status="Downloading",
+                            eta=eta,
+                            speed=speed,
+                            elapsed=elapsed,
+                            user_mention=user_mention,
+                            user_id=user_id,
+                            aria2p_gid=""
+                        )
+                        try:
+                            await reply_msg.edit_text(progress_text)
+                        except Exception as e:
+                            logging.warning(f"Progress update error: {e}")
+                        last_update_time = now
+                    await asyncio.sleep(1)
 
-        # Pre-allocate file
-        with open(file_path, 'wb') as f:
-            f.truncate(file_size)
+            # Pre-allocate file
+            with open(file_path, 'wb') as f:
+                f.truncate(file_size)
 
-        download_tasks = []
-        for part in range(MAX_CONCURRENT_CONNECTIONS):
-            start = part * part_size
-            end = (start + part_size - 1) if part < MAX_CONCURRENT_CONNECTIONS - 1 else file_size - 1
-            download_tasks.append(download_part(start, end, part))
+            download_tasks = []
+            for part in range(MAX_CONCURRENT_CONNECTIONS):
+                start = part * part_size
+                end = (start + part_size - 1) if part < MAX_CONCURRENT_CONNECTIONS - 1 else file_size - 1
+                download_tasks.append(download_part(start, end, part))
 
-        await asyncio.gather(update_progress(), *download_tasks)
+            await asyncio.gather(update_progress(), *download_tasks)
+
+            break  # Exit the loop once the download is complete
 
     downloads_manager.pop(download_key, None)
     return file_path
