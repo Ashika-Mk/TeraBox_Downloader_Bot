@@ -10,6 +10,7 @@ import re
 import string
 import time
 from datetime import datetime, timedelta
+from status import format_progress_bar
 from collections import defaultdict
 import aiohttp
 import aiofiles
