@@ -301,5 +301,18 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
                 await message.delete()
                 await reply_msg.delete()
 
-                # Optional sticker
+
+            # Optional sticker
                 sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
+                await asyncio.sleep(5)
+                await sticker_msg.delete()
+
+                return collection_message.id
+
+            except Exception as e:
+                logging.error(f"Upload error: {e}", exc_info=True)
+                return None
+            finally:
+                uploads_manager.pop(user_id, None)
+
+                
