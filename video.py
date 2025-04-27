@@ -7,6 +7,7 @@ import os
 import random
 import re
 import string as rohit
+from status import format_progress_bar
 import time
 from datetime import datetime, timedelta
 from pyrogram import Client, filters, __version__
