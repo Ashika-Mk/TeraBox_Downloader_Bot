@@ -8,8 +8,7 @@ import logging
 import os
 import random
 import re
-import string 
-import string as rohit
+import string
 import time
 from pyrogram import Client, filters, __version__
 from pyrogram.enums import ParseMode, ChatAction
@@ -45,12 +44,11 @@ import time
 from datetime import datetime
 from collections import defaultdict
 
-#rohit95 old token
+# rohit95 old token
 
 TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "85ebfdd8-77d5-4725-a3b6-3a03ba188a5c_7328629001"
 THUMBNAIL = "https://envs.sh/S-T.jpg"
-
 
 downloads_manager = {}
 
@@ -239,86 +237,69 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             # Fix duration
             duration = get_video_duration(file_path)
 
-            # Upload progress
-            async def progress(current, total):
-                nonlocal uploaded, last_update_time
-                uploaded = current
-                percentage = (current / total) * 100
-                elapsed = (datetime.now() - start_time).total_seconds()
-                if time.time() - last_update_time > 2:
-                    eta = (total - current) / (current / elapsed) if current > 0 else 0
-                    speed = current / elapsed if current > 0 else 0
-                    progress_text = format_progress_bar(
-                        filename=video_title,
-                        percentage=percentage,
-                        done=current,
-                        total_size=total,
-                        status="Uploading",
-                        eta=eta,
-                        speed=speed,
-                        elapsed=elapsed,
-                        user_mention=user_mention,
-                        user_id=user_id,
-                        aria2p_gid=""
-                    )
-                    try:
-                        await reply_msg.edit_text(progress_text)
-                        last_update_time = time.time()
-                    except Exception as e:
-                        logging.warning(f"Progress update failed: {e}")
+            # Check if the video is already uploaded in the DB channel
+            file_already_uploaded = False  # Implement logic to check if the file is already in DB channel
 
-            # Upload to DB channel
-            collection_message = await client.send_video(
-                chat_id=db_channel_id,
-                video=file_path,
-                caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
-                thumb=thumbnail_path if thumbnail_path else None,
-                duration=duration,
-                supports_streaming=True,
-                progress=progress
-            )
+            if file_already_uploaded:
+                # Forward the file to the user
+                forwarded_msg = await client.forward_messages(
+                    chat_id=message.chat.id,
+                    from_chat_id=db_channel_id,
+                    message_ids=[file_id]  # ID of the file message in DB channel
+                )
+                # Edit the forwarded message caption
+                caption = "" if HIDE_CAPTION else f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
+                await forwarded_msg.edit_caption(caption=caption, parse_mode=ParseMode.HTML)
 
-            # Copy to user chat
-            copied_msg = await client.copy_message(
-                chat_id=message.chat.id,
-                from_chat_id=db_channel_id,
-                message_id=collection_message.id
-            )
+                # Auto delete
+                if AUTO_DEL:
+                    asyncio.create_task(delete_message(forwarded_msg, DEL_TIMER))
 
-            # Final caption + button
-            caption = "" if HIDE_CAPTION else f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
-            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=button_name, url=button_link)]]) if CHNL_BTN else None
+                # Optional sticker
+                sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
+                await asyncio.sleep(5)
+                await sticker_msg.delete()
 
-            await copied_msg.edit_caption(
-                caption=caption,
-                parse_mode=ParseMode.HTML,
-                reply_markup=reply_markup
-            )
+                return forwarded_msg.id
+            else:
+                # Handle video upload logic if not uploaded
+                collection_message = await client.send_video(
+                    chat_id=db_channel_id,
+                    video=file_path,
+                    caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
+                    thumb=thumbnail_path if thumbnail_path else None,
+                    duration=duration,
+                    supports_streaming=True,
+                    progress=progress
+                )
 
-            # Auto delete
-            if AUTO_DEL:
-                asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
+                # Copy to user chat
+                copied_msg = await client.copy_message(
+                    chat_id=message.chat.id,
+                    from_chat_id=db_channel_id,
+                    message_id=collection_message.id
+                )
 
-            # Cleanup
-            os.remove(file_path)
-            if thumbnail_path and os.path.exists(thumbnail_path):
-                os.remove(thumbnail_path)
-            await message.delete()
-            await reply_msg.delete()
-            #try:
-                #await reply_msg.delete()
-            #except Exception as e:
-                #logging.warning(f"Failed to delete reply_msg: {e}")
+                # Final caption + button
+                caption = "" if HIDE_CAPTION else f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
+                reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=button_name, url=button_link)]]) if CHNL_BTN else None
 
-            # Optional sticker
-            sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
-            await asyncio.sleep(5)
-            await sticker_msg.delete()
+                await copied_msg.edit_caption(
+                    caption=caption,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=reply_markup
+                )
 
-            return collection_message.id
+                # Auto delete
+                if AUTO_DEL:
+                    asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
-        except Exception as e:
-            logging.error(f"Upload error: {e}", exc_info=True)
-            return None
-        finally:
-            uploads_manager.pop(user_id, None)
+                # Cleanup
+                os.remove(file_path)
+                if thumbnail_path and os.path.exists(thumbnail_path):
+                    os.remove(thumbnail_path)
+                await message.delete()
+                await reply_msg.delete()
+
+                # Optional sticker
+                sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3ph
