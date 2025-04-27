@@ -62,13 +62,19 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
     ) as session:
         async with session.head(url) as resp:
             if resp.status not in [200, 206]:
+                if resp.status == 302:
+                    # Handle redirect
+                    redirect_url = resp.headers.get("Location")
+                    logging.info(f"Redirected to {redirect_url}")
+                    url = redirect_url  # Follow the redirection
+                    continue  # Retry with the new URL
                 raise Exception(f"Server error: HTTP {resp.status}")
 
         part_size = file_size // MAX_CONCURRENT_CONNECTIONS
 
         async def download_part(start, end, part_num):
             part_headers = {"Range": f"bytes={start}-{end}"}
-            async with session.get(url, headers=part_headers) as resp:
+            async with session.get(url, headers=part_headers, allow_redirects=True) as resp:
                 if resp.status not in [206, 200]:
                     raise Exception(f"Failed part {part_num}: HTTP {resp.status}")
                 async with aiofiles.open(file_path, 'rb+') as f:
@@ -166,6 +172,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
+
 
 uploads_manager = {}
 
