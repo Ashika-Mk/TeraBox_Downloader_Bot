@@ -60,6 +60,42 @@ async def fetch_json(url: str) -> dict:
         async with session.get(url) as resp:
             return await resp.json()
 
+def generate_thumbnail(video_path: str, output_path: str, time_position: int = 10) -> str:
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-ss", str(time_position), "-i", video_path,
+                "-vframes", "1", "-q:v", "2", "-vf", "scale=320:-1",
+                output_path
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True
+        )
+        return output_path if os.path.exists(output_path) else None
+    except Exception as e:
+        logging.warning(f"Thumbnail generation failed: {e}")
+        return None
+
+def get_video_duration(file_path: str) -> int:
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                file_path
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        return int(float(result.stdout.strip()))
+    except Exception as e:
+        logging.warning(f"Failed to get duration: {e}")
+        return 0
+
+
 async def download(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
     sanitized_filename = filename.replace("/", "_").replace("\\", "_")
     file_path = os.path.join(os.getcwd(), sanitized_filename)
