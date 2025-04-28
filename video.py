@@ -207,30 +207,32 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
         start_time = datetime.now()
         last_update_time = time.time()
 
-        # Config fetch (parallel)
-        AUTO_DEL, DEL_TIMER, HIDE_CAPTION, CHNL_BTN, PROTECT_MODE, button_data = await asyncio.gather(
-            db.get_auto_delete(), db.get_del_timer(), db.get_hide_caption(),
-            db.get_channel_button(), db.get_protect_content(),
-            db.get_channel_button_link()
-        )
+        # Fetch config individually
+        AUTO_DEL = await db.get_auto_delete()
+        DEL_TIMER = await db.get_del_timer()
+        HIDE_CAPTION = await db.get_hide_caption()
+        CHNL_BTN = await db.get_channel_button()
+        PROTECT_MODE = await db.get_protect_content()
+        button_data = await db.get_channel_button_link()
         button_name, button_link = button_data if CHNL_BTN else (None, None)
 
         # Generate thumbnail
         thumbnail_path = f"{file_path}.jpg"
         thumbnail_path = generate_thumbnail(file_path, thumbnail_path)
 
-        # Fix video duration
+        # Get duration
         duration = get_video_duration(file_path)
 
-        # Upload progress
+        # Upload progress updater
         async def progress(current, total):
             nonlocal uploaded, last_update_time
             uploaded = current
-            percentage = (current / total) * 100
+            percentage = (current / total) * 100 if total else 0
             elapsed = (datetime.now() - start_time).total_seconds()
-            if time.time() - last_update_time > 2:  # Update every 2 seconds
-                eta = (total - current) / (current / elapsed) if current > 0 else 0
-                speed = current / elapsed if current > 0 else 0
+            speed = current / elapsed if elapsed > 0 else 0
+            eta = (total - current) / speed if speed > 0 else 0
+
+            if time.time() - last_update_time > 2:
                 progress_text = format_progress_bar(
                     filename=video_title,
                     percentage=percentage,
@@ -250,7 +252,7 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
                 except Exception as e:
                     logging.warning(f"Progress update failed: {e}")
 
-        # Upload to DB Channel
+        # Start upload immediately (without waiting)
         collection_message = await client.send_video(
             chat_id=db_channel_id,
             video=file_path,
@@ -269,7 +271,7 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             message_id=collection_message.id
         )
 
-        # Final caption + button
+        # Update caption and add button if needed
         caption = "" if HIDE_CAPTION else f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
         reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=button_name, url=button_link)]]) if CHNL_BTN else None
 
@@ -279,11 +281,11 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             reply_markup=reply_markup
         )
 
-        # Auto-delete after timer
+        # Setup auto-delete if enabled
         if AUTO_DEL:
             asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
-        # Cleanup files
+        # Cleanup files after upload
         try:
             os.remove(file_path)
             if thumbnail_path and os.path.exists(thumbnail_path):
@@ -291,13 +293,13 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
         except Exception as e:
             logging.warning(f"Cleanup error: {e}")
 
-        # Clean extra messages
+        # Delete reply and user command message
         await asyncio.gather(
             reply_msg.delete(),
             message.delete()
         )
 
-        # Optional sticker
+        # Send optional sticker
         try:
             sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
             await asyncio.sleep(5)
