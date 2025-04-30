@@ -11,16 +11,9 @@ from dotenv import load_dotenv
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-
-
-
-
-
-
-
 #Bot token @Botfather
 
-TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "7401282886:AAHWvkih1IZbMvGaBoG1Bx08Dw3d9nSNtVI")
+TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "7324123854:AAGoBTXPsB-WFAVbBrH-dtzovLzNYRi54mU")
 
 
 #Your API ID from my.telegram.org
@@ -49,7 +42,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "7328629001"))
 
 #Port
 
-PORT = os.environ.get("PORT", "5617")
+PORT = os.environ.get("PORT", "5618")
 
 
 
