@@ -54,20 +54,6 @@ THUMBNAIL = "https://envs.sh/S-T.jpg"
 
 downloads_manager = {}
 
-async def download_thumbnail(url: str) -> str:
-    """Downloads the thumbnail from a URL and saves it locally."""
-    filename = "thumbnail.jpg"
-    file_path = os.path.join(os.getcwd(), filename)
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            if resp.status != 200:
-                raise Exception(f"Failed to download thumbnail: HTTP {resp.status}")
-
-            async with aiofiles.open(file_path, 'wb') as f:
-                await f.write(await resp.read())
-
-    return file_path  # Return local file path
 
 async def fetch_json(url: str) -> dict:
     async with aiohttp.ClientSession() as session:
@@ -78,20 +64,15 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
     sanitized_filename = filename.replace("/", "_").replace("\\", "_")
     file_path = os.path.join(os.getcwd(), sanitized_filename)
 
-    cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
-
     download_key = f"{user_id}-{sanitized_filename}"  # Unique key per file
     downloads_manager[download_key] = {"downloaded": 0}
 
-    async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=900),
-        cookies=cookies
-    ) as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=900)) as session:
         async with session.get(url) as resp:
             if resp.status != 200:
                 raise Exception(f"Failed to fetch video: HTTP {resp.status}")
 
-            total_size = int(resp.headers.get("Content-Length", 0)) or file_size  # Ensure file size is correct
+            total_size = int(resp.headers.get("Content-Length", 0)) or file_size
             start_time = datetime.now()
             last_update_time = time.time()
 
@@ -137,42 +118,40 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
     downloads_manager.pop(download_key, None)  # Cleanup after completion
     return file_path
 
-async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
+
+async def download_video(url, reply_msg, user_mention, user_id, client, db_channel_id, message, max_retries=3):
     try:
         logging.info(f"Fetching video info: {url}")
 
-        # Fetch video details
         api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token={TERABOX_API_TOKEN}")
 
         if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
             raise Exception("Invalid API response format.")
 
-        # Extract details from response
         data = api_response[0]
-        download_link = data["link"] + f"&random={random.randint(1, 10)}"
+        download_link = data["direct_link"]  # Use direct link instead of cookie-authenticated one
         video_title = data["filename"]
-        file_size = int(data.get("size", 0))  # Convert to int to ensure proper type
-        thumb_url = data["thumbnail"] # Use default if missing
-
-        logging.info(f"Downloading: {video_title} | Size: {file_size} bytes")
+        file_size = int(data.get("size", 0))
+        thumb_url = data["thumbnail"]
 
         if file_size == 0:
             raise Exception("Failed to get file size, download aborted.")
 
-        # Retry logic for robustness
         for attempt in range(1, max_retries + 1):
             try:
-                file_path = await asyncio.create_task(download(download_link, user_id, video_title, reply_msg, user_mention, file_size))
-                break  # Exit loop if successful
+                file_path = await asyncio.create_task(
+                    download(download_link, user_id, video_title, reply_msg, user_mention, file_size)
+                )
+                break
             except Exception as e:
                 logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
                 if attempt == max_retries:
-                    raise e  # Raise error if all retries fail
+                    raise e
                 await asyncio.sleep(3)
 
-        # Send completion message
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-        return file_path, thumb_url, video_title, None  # No duration in response
+
+        return file_path, thumb_url, video_title, None
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
