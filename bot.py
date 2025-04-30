@@ -56,27 +56,29 @@ class Bot(Client):
     async def start(self):
         await super().start()
         usr_bot_me = await self.get_me()
-        self.uptime = get_indian_time()  # Use IST for uptime tracking
+        self.uptime = get_indian_time()
 
+        
         try:
             db_channel = await self.get_chat(CHANNEL_ID)
             self.db_channel = db_channel
+
         except Exception as e:
             self.LOGGER(__name__).warning(e)
-            self.LOGGER(__name__).warning(
-                f"Make Sure bot is Admin in DB Channel, and Double check the CHANNEL_ID Value, Current Value {CHANNEL_ID}"
-            )
-            self.LOGGER(__name__).info("\nBot Stopped. @rohit_1888 for support")
+            self.LOGGER(__name__).warning(f"Make Sure bot is Admin in DB Channel, and Double check the CHANNEL_ID Value, Current Value {CHANNEL_ID}")
+            self.LOGGER(__name__).info("\nBot Stopped. @justnothingat for support")
             sys.exit()
 
         self.set_parse_mode(ParseMode.HTML)
-        self.username = usr_bot_me.username
-        self.LOGGER(__name__).info(f"Bot Running..! Made by @rohit_1888")   
+        self.LOGGER(__name__).info(f"Bot Running..! Made by @justnothingat")
 
-        # Start Web Server
+        self.username = usr_bot_me.username
+        #web-response
         app = web.AppRunner(await web_server())
         await app.setup()
-        await web.TCPSite(app, "0.0.0.0", PORT).start()
+        bind_address = "0.0.0.0"
+        await web.TCPSite(app, bind_address, PORT).start()
+
 
         try:
             await self.send_message(OWNER_ID, text=f"<b><blockquote>🤖 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ by @rohit_1888</blockquote></b>")
@@ -85,21 +87,8 @@ class Bot(Client):
 
     async def stop(self, *args):
         await super().stop()
-        self.LOGGER(__name__).info("Bot stopped.")
-
-    def run(self):
-        """Run the bot."""
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.start())
-        self.LOGGER(__name__).info("Bot is now running. Thanks to @rohit_1888")
-        try:
-            loop.run_forever()
-        except KeyboardInterrupt:
-            self.LOGGER(__name__).info("Shutting down...")
-        finally:
-            loop.run_until_complete(self.stop())
-
+        self.LOGGER(__name__).info("Bot stopped. Made By @justnothingat")
 
 if __name__ == "__main__":
-    #keep_alive()
+
     Bot().run()
