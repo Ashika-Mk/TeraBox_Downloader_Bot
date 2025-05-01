@@ -14,9 +14,10 @@ import aria2p
 from config import *
 from dotenv import load_dotenv
 from database.db_premium import remove_expired_users
+
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import pyrogram.utils
-import signal
 
 pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
 
@@ -30,7 +31,7 @@ def home():
     return "Bot is running"
 
 def run_flask():
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5066)))
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7864)))
 
 def keep_alive():
     t = Thread(target=run_flask)
@@ -41,10 +42,6 @@ def get_indian_time():
     ist = pytz.timezone("Asia/Kolkata")
     return datetime.now(ist)
 
-async def restart_bot():
-    print("Scheduled restart triggered.")
-    os.kill(os.getpid(), signal.SIGINT)
-
 aria2 = aria2p.API(
     aria2p.Client(
         host="http://localhost",  # Default aria2 RPC host
@@ -52,6 +49,7 @@ aria2 = aria2p.API(
         secret=""                 # Set your secret if you configured one
     )
 )
+
 
 class Bot(Client):
     def __init__(self):
@@ -91,11 +89,6 @@ class Bot(Client):
         app = web.AppRunner(await web_server())
         await app.setup()
         await web.TCPSite(app, "0.0.0.0", PORT).start()
-
-        # Schedule automatic restart every 24 hours
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(restart_bot, "interval", hours=24)
-        scheduler.start()
 
         try:
             await self.send_message(OWNER_ID, text=f"<b><blockquote>🤖 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ by @rohit_1888</blockquote></b>")
