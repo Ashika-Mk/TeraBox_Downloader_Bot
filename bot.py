@@ -1,6 +1,5 @@
 import asyncio
 from aiohttp import web
-from plugins import web_server
 from flask import Flask
 from threading import Thread
 import os
@@ -20,6 +19,17 @@ import pyrogram.utils
 pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
 
 load_dotenv(".env")
+
+async def web_server():
+    web_app = web.Application(client_max_size=30000000)
+    web_app.add_routes(routes)
+    return web_app
+
+routes = web.RouteTableDef()
+
+@routes.get("/", allow_head=True)
+async def root_route_handler(request):
+    return web.json_response("CodeXBotz")
 
 # Rename Flask app instance to avoid conflict
 flask_app = Flask(__name__)
