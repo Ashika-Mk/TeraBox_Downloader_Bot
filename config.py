@@ -67,7 +67,7 @@ TUT_VID = os.environ.get("TUT_VID", "https://t.me/delight_link/2")
 
 
 
-TG_BOT_WORKERS = int(os.environ.get("TG_BOT_WORKERS", "300"))
+TG_BOT_WORKERS = int(os.environ.get("TG_BOT_WORKERS", "400"))
 
 
 
