@@ -32,18 +32,18 @@ async def root_route_handler(request):
     return web.json_response("CodeXBotz")
 
 # Rename Flask app instance to avoid conflict
-flask_app = Flask(__name__)
+#flask_app = Flask(__name__)
 
-@flask_app.route('/')
-def home():
-    return "Bot is running"
+#@flask_app.route('/')
+#def home():
+    #return "Bot is running"
 
-def run_flask():
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 3810)))
+#def run_flask():
+    #flask_app.run(host="0.0.0.0", #port=int(os.environ.get("PORT", 3810)))
 
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.start()
+#def keep_alive():
+   # t = Thread(target=run_flask)
+  #  t.start()
 
 def get_indian_time():
     ist = pytz.timezone("Asia/Kolkata")
@@ -63,7 +63,6 @@ class Bot(Client):
             name="Bot",
             api_hash=API_HASH,
             api_id=APP_ID,
-            plugins={"root": "plugins"},
             workers=TG_BOT_WORKERS,
             bot_token=TG_BOT_TOKEN
         )
