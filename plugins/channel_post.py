@@ -252,8 +252,4 @@ async def handle_message(client: Client, message: Message):
             )
 
     # **Free Usage Disabled & Token Expired/Disabled**
-    else:
-        return await message.reply(
-            "⚠️ Free downloads are disabled. Please purchase premium.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
-        )
+    
