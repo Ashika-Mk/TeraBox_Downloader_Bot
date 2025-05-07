@@ -50,11 +50,19 @@ class Bot(Client):
         )
         self.LOGGER = LOGGER
 
+    async def restart_bot(self):
+        self.LOGGER(__name__).info("Restarting bot (scheduled every 2 hours)...")
+        try:
+            await self.send_message(OWNER_ID, "<b><blockquote>♻️ Restarting bot to keep it fresh...</blockquote></b>")
+        except:
+            pass
+        await self.stop()
+        os.execv(sys.executable, ['python'] + sys.argv)
+
     async def start(self):
         await super().start()
         usr_bot_me = await self.get_me()
-        self.uptime = get_indian_time()  # Use IST for uptime tracking
-
+        self.uptime = get_indian_time()
 
         try:
             db_channel = await self.get_chat(CHANNEL_ID)
@@ -69,16 +77,22 @@ class Bot(Client):
 
         self.set_parse_mode(ParseMode.HTML)
         self.username = usr_bot_me.username
-        self.LOGGER(__name__).info(f"Bot Running..! Made by @rohit_1888")   
+        self.LOGGER(__name__).info(f"Bot Running..! Made by @rohit_1888")
 
         # Start Web Server
         app = web.AppRunner(await web_server())
         await app.setup()
         await web.TCPSite(app, "0.0.0.0", PORT).start()
 
+        # Start Scheduler for periodic tasks
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(self.restart_bot, "interval", hours=2)
+        scheduler.start()
 
-        try: await self.send_message(OWNER_ID, text = f"<b><blockquote>🤖 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ by @rohit_1888</blockquote></b>")
-        except: pass
+        try:
+            await self.send_message(OWNER_ID, text=f"<b><blockquote>🤖 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ by @rohit_1888</blockquote></b>")
+        except:
+            pass
 
     async def stop(self, *args):
         await super().stop()
