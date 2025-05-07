@@ -214,8 +214,7 @@ async def handle_message(client: Client, message: Message):
                 logging.error(f"Download or upload error: {e}")
                 return await reply_msg.edit_text("❌ API returned a broken link or failed to upload.")
 
-        else:
-            await message.reply("❌ You have exceeded your free usage limit.")
+       
 
         # **Free limit reached cases**
         else:
