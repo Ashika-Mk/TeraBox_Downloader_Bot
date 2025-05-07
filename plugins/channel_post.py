@@ -122,27 +122,27 @@ async def handle_message(client: Client, message: Message):
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            #asyncio.create_task(upload_video(
-                #client=client,
-                #file_path=file_path,
-                #video_title=video_title,
-                #reply_msg=reply_msg,
-                #db_channel_id=db_channel_id,
-                #user_mention=user_mention,
-                #user_id=user_id,
-               # message=message
-            #))
-            try:
-                await upload_video(
-                    client=client,
-                    file_path=file_path,
-                    video_title=video_title,
-                    reply_msg=reply_msg,
-                    db_channel_id=db_channel_id,
-                    user_mention=user_mention,
-                    user_id=user_id,
-                    message=message
-                    )
+            asyncio.create_task(upload_video(
+                client=client,
+                file_path=file_path,
+                video_title=video_title,
+                reply_msg=reply_msg,
+                db_channel_id=db_channel_id,
+                user_mention=user_mention,
+                user_id=user_id,
+                message=message
+            ))
+            #try:
+                #await upload_video(
+                    #client=client,
+                    #file_path=file_path,
+                    #video_title=video_title,
+                    #reply_msg=reply_msg,
+                    #db_channel_id=db_channel_id,
+                    #user_mention=user_mention,
+                    #user_id=user_id,
+                    #message=message
+                    #)
             except Exception as e:
                 logging.error(f"Upload error: {e}")
                 return await reply_msg.edit_text("❌ Failed to upload the video.")
@@ -170,18 +170,16 @@ async def handle_message(client: Client, message: Message):
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
 
-            try:
-                await upload_video(
-                    client=client,
-                    file_path=file_path,
-                    video_title=video_title,
-                    reply_msg=reply_msg,
-                    db_channel_id=db_channel_id,
-                    user_mention=user_mention,
-                    user_id=user_id,
-                    message=message
-                    )
-
+            asyncio.create_task(upload_video(
+                client=client,
+                file_path=file_path,
+                video_title=video_title,
+                reply_msg=reply_msg,
+                db_channel_id=db_channel_id,
+                user_mention=user_mention,
+                user_id=user_id,
+                message=message
+            ))
             except Exception as e:
                 logging.error(f"Upload error: {e}")
                 return await reply_msg.edit_text("❌ Failed to upload the video.")
@@ -220,8 +218,7 @@ async def handle_message(client: Client, message: Message):
                     return await reply_msg.edit_text("❌ API returned a broken link.")
 
 
-                try:
-                    await upload_video(
+                asyncio.create_task(upload_video(
                     client=client,
                     file_path=file_path,
                     video_title=video_title,
@@ -230,7 +227,7 @@ async def handle_message(client: Client, message: Message):
                     user_mention=user_mention,
                     user_id=user_id,
                     message=message
-                    )
+                ))
                 except Exception as e:
                     logging.error(f"Upload error: {e}")
                     return await reply_msg.edit_text("❌ Failed to upload the video.")
