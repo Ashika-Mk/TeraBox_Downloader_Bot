@@ -197,7 +197,9 @@ uploads_manager = {}
 
 async def upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     try:
-        uploads_manager[user_id] = file_path
+        # Create the background task to handle upload
+        uploads_manager.setdefault(user_id, []).append(file_path)
+
         file_size = os.path.getsize(file_path)
         uploaded = 0
         start_time = datetime.now()
@@ -274,6 +276,7 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
         if AUTO_DEL:
             asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
+        # Send sticker and delete after 5 seconds
         sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
         await asyncio.sleep(5)
         await sticker_msg.delete()
@@ -283,8 +286,13 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
     except Exception as e:
         logging.error(f"Upload error: {e}", exc_info=True)
         return None
+
     finally:
-        uploads_manager.pop(user_id, None)
+        # Clean up
+        uploads_manager[user_id].remove(file_path)
+        if not uploads_manager[user_id]:
+            uploads_manager.pop(user_id)
+
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)
