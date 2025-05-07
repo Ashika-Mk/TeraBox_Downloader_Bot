@@ -96,7 +96,7 @@ async def handle_message(client: Client, message: Message):
         'terabox.com', 'nephobox.com', '4funbox.com', 'mirrobox.com',
         'momerybox.com', 'teraboxapp.com', '1024tera.com',
         'terabox.app', 'gibibox.com', 'goaibox.com', 'terasharelink.com',
-        'teraboxlink.com', 'terafileshare.com', 'teraboxshare.com'
+        'teraboxlink.com', 'terafileshare.com', 'teraboxshare.com', 'terabox.club'
     ]
 
     if not any(domain in message_text for domain in valid_domains):
@@ -110,14 +110,14 @@ async def handle_message(client: Client, message: Message):
         premium_msg = await message.reply("✅ Processing as a premium user...")
         try:
             file_path, thumbnail_path, video_title, video_duration = await download_video(
-            message_text,  # URL
-            reply_msg,
-            user_mention,
-            user_id,
-            client,
-            db_channel_id,
-            message
-        )
+                message_text,  # URL
+                reply_msg,
+                user_mention,
+                user_id,
+                client,
+                db_channel_id,
+                message
+            )
 
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
@@ -132,43 +132,29 @@ async def handle_message(client: Client, message: Message):
                 user_id=user_id,
                 message=message
             ))
-            #try:
-                #await upload_video(
-                    #client=client,
-                    #file_path=file_path,
-                    #video_title=video_title,
-                    #reply_msg=reply_msg,
-                    #db_channel_id=db_channel_id,
-                    #user_mention=user_mention,
-                    #user_id=user_id,
-                    #message=message
-                    #)
-            except Exception as e:
-                logging.error(f"Upload error: {e}")
-                return await reply_msg.edit_text("❌ Failed to upload the video.")
 
             await premium_msg.delete()
+
         except Exception as e:
-            logging.error(f"Download error: {e}")
-            return await reply_msg.edit_text("❌ API returned a broken link.")
+            logging.error(f"Download or upload error: {e}")
+            return await reply_msg.edit_text("❌ API returned a broken link or failed to upload.")
 
     # **Verified Free Users (Still Valid)**
     elif verify_status['is_verified']:
         verified_msg = await message.reply("✅ Processing as a verified user...")
         try:
             file_path, thumbnail_path, video_title, video_duration = await download_video(
-            message_text,  # URL
-            reply_msg,
-            user_mention,
-            user_id,
-            client,
-            db_channel_id,
-            message
-        )
+                message_text,  # URL
+                reply_msg,
+                user_mention,
+                user_id,
+                client,
+                db_channel_id,
+                message
+            )
 
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
-
 
             asyncio.create_task(upload_video(
                 client=client,
@@ -180,14 +166,12 @@ async def handle_message(client: Client, message: Message):
                 user_id=user_id,
                 message=message
             ))
-            except Exception as e:
-                logging.error(f"Upload error: {e}")
-                return await reply_msg.edit_text("❌ Failed to upload the video.")
 
             await verified_msg.delete()
+
         except Exception as e:
-            logging.error(f"Download error: {e}")
-            return await reply_msg.edit_text("❌ API returned a broken link.")
+            logging.error(f"Download or upload error: {e}")
+            return await reply_msg.edit_text("❌ API returned a broken link or failed to upload.")
 
     # **Free Usage Check**
     elif free_enabled:
@@ -200,23 +184,18 @@ async def handle_message(client: Client, message: Message):
             )
 
             try:
-                try:
-                    file_path, thumbnail_path, video_title, video_duration = await download_video(
-            message_text,  # URL
-            reply_msg,
-            user_mention,
-            user_id,
-            client,
-            db_channel_id,
-            message
-        )
+                file_path, thumbnail_path, video_title, video_duration = await download_video(
+                    message_text,  # URL
+                    reply_msg,
+                    user_mention,
+                    user_id,
+                    client,
+                    db_channel_id,
+                    message
+                )
 
-                    if file_path is None:
-                        return await reply_msg.edit_text("Failed to download. The link may be broken.")
-                except Exception as e:
-                    logging.error(f"Download error: {e}")
-                    return await reply_msg.edit_text("❌ API returned a broken link.")
-
+                if file_path is None:
+                    return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
                 asyncio.create_task(upload_video(
                     client=client,
@@ -228,15 +207,15 @@ async def handle_message(client: Client, message: Message):
                     user_id=user_id,
                     message=message
                 ))
-                except Exception as e:
-                    logging.error(f"Upload error: {e}")
-                    return await reply_msg.edit_text("❌ Failed to upload the video.")
 
                 await free_msg.delete()
 
             except Exception as e:
-                logging.error(f"Unexpected error: {e}")
-                return await reply_msg.edit_text("❌ An unexpected error occurred.")
+                logging.error(f"Download or upload error: {e}")
+                return await reply_msg.edit_text("❌ API returned a broken link or failed to upload.")
+
+        else:
+            await message.reply("❌ You have exceeded your free usage limit.")
 
         # **Free limit reached cases**
         else:
