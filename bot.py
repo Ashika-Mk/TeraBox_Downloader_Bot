@@ -1,5 +1,3 @@
-
-
 import asyncio
 from aiohttp import web
 from flask import Flask
@@ -15,8 +13,6 @@ import aria2p
 from config import *
 from dotenv import load_dotenv
 from database.db_premium import remove_expired_users
-
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 load_dotenv(".env")
@@ -53,12 +49,11 @@ def get_indian_time():
 
 aria2 = aria2p.API(
     aria2p.Client(
-        host="http://localhost",  # Default aria2 RPC host
-        port=6800,                # Default aria2 RPC port
-        secret=""                 # Set your secret if you configured one
+        host="http://localhost",
+        port=6800,
+        secret=""
     )
 )
-
 
 class Bot(Client):
     def __init__(self):
@@ -73,11 +68,12 @@ class Bot(Client):
             bot_token=TG_BOT_TOKEN
         )
         self.LOGGER = LOGGER
+        self.scheduler = AsyncIOScheduler()
 
     async def start(self):
         await super().start()
         usr_bot_me = await self.get_me()
-        self.uptime = get_indian_time()  # Use IST for uptime tracking
+        self.uptime = get_indian_time()
 
         try:
             db_channel = await self.get_chat(CHANNEL_ID)
@@ -99,17 +95,34 @@ class Bot(Client):
         await app.setup()
         await web.TCPSite(app, "0.0.0.0", PORT).start()
 
+        # Start scheduled jobs
+        self.scheduler.add_job(self.ping_check, "interval", minutes=10)
+        self.scheduler.start()
+
         try:
             await self.send_message(OWNER_ID, text=f"<b><blockquote>🤖 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ by @rohit_1888</blockquote></b>")
         except:
             pass
+
+    async def ping_check(self):
+        try:
+            await self.get_me()
+            self.LOGGER(__name__).info("Ping check passed.")
+        except Exception as e:
+            self.LOGGER(__name__).error("Ping check failed.")
+            try:
+                await self.send_message(
+                    self.db_channel.id,
+                    "<b>⚠️ Bot is not responding properly. Please check logs or restart.</b>"
+                )
+            except:
+                pass
 
     async def stop(self, *args):
         await super().stop()
         self.LOGGER(__name__).info("Bot stopped.")
 
     def run(self):
-        """Run the bot."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.start())
         self.LOGGER(__name__).info("Bot is now running. Thanks to @Rohit_1888")
@@ -119,7 +132,6 @@ class Bot(Client):
             self.LOGGER(__name__).info("Shutting down...")
         finally:
             loop.run_until_complete(self.stop())
-
 
 if __name__ == "__main__":
     keep_alive()
