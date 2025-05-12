@@ -95,28 +95,12 @@ class Bot(Client):
         await app.setup()
         await web.TCPSite(app, "0.0.0.0", PORT).start()
 
-        # Start scheduled jobs
-        self.scheduler.add_job(self.ping_check, "interval", minutes=10)
-        self.scheduler.start()
-
         try:
             await self.send_message(OWNER_ID, text=f"<b><blockquote>🤖 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ by @rohit_1888</blockquote></b>")
         except:
             pass
 
-    async def ping_check(self):
-        try:
-            await self.get_me()
-            self.LOGGER(__name__).info("Ping check passed.")
-        except Exception as e:
-            self.LOGGER(__name__).error("Ping check failed.")
-            try:
-                await self.send_message(
-                    self.db_channel.id,
-                    "<b>⚠️ Bot is not responding properly. Please check logs or restart.</b>"
-                )
-            except:
-                pass
+    
 
     async def stop(self, *args):
         await super().stop()
