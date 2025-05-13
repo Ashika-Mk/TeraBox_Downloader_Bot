@@ -28,6 +28,11 @@ async def web_server():
     web_app.add_routes(routes)
     return web_app
 
+import pyrogram.utils
+
+pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
+
+
 # Rename Flask app instance to avoid conflict
 flask_app = Flask(__name__)
 
@@ -36,7 +41,7 @@ def home():
     return "Bot is running"
 
 def run_flask():
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 3414)))
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5904)))
 
 def keep_alive():
     t = Thread(target=run_flask)
@@ -49,11 +54,12 @@ def get_indian_time():
 
 aria2 = aria2p.API(
     aria2p.Client(
-        host="http://localhost",
-        port=6800,
-        secret=""
+        host="http://localhost",  # Default aria2 RPC host
+        port=6800,                # Default aria2 RPC port
+        secret=""                 # Set your secret if you configured one
     )
 )
+
 
 class Bot(Client):
     def __init__(self):
@@ -61,19 +67,15 @@ class Bot(Client):
             name="Bot",
             api_hash=API_HASH,
             api_id=APP_ID,
-            plugins={
-                "root": "plugins"
-            },
             workers=TG_BOT_WORKERS,
             bot_token=TG_BOT_TOKEN
         )
         self.LOGGER = LOGGER
-        self.scheduler = AsyncIOScheduler()
 
     async def start(self):
         await super().start()
         usr_bot_me = await self.get_me()
-        self.uptime = get_indian_time()
+        self.uptime = get_indian_time()  # Use IST for uptime tracking
 
         try:
             db_channel = await self.get_chat(CHANNEL_ID)
@@ -83,12 +85,12 @@ class Bot(Client):
             self.LOGGER(__name__).warning(
                 f"Make Sure bot is Admin in DB Channel, and Double check the CHANNEL_ID Value, Current Value {CHANNEL_ID}"
             )
-            self.LOGGER(__name__).info("\nBot Stopped. @Zenotty for support")
+            self.LOGGER(__name__).info("\nBot Stopped. @rohit_1888 for support")
             sys.exit()
 
         self.set_parse_mode(ParseMode.HTML)
         self.username = usr_bot_me.username
-        self.LOGGER(__name__).info(f"Bot Running..! Made by @Zenotty")   
+        self.LOGGER(__name__).info(f"Bot Running..! Made by @rohit_1888")   
 
         # Start Web Server
         app = web.AppRunner(await web_server())
@@ -100,22 +102,22 @@ class Bot(Client):
         except:
             pass
 
-    
-
     async def stop(self, *args):
         await super().stop()
         self.LOGGER(__name__).info("Bot stopped.")
 
     def run(self):
+        """Run the bot."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.start())
-        self.LOGGER(__name__).info("Bot is now running. Thanks to @Rohit_1888")
+        self.LOGGER(__name__).info("Bot is now running. Thanks to @rohit_1888")
         try:
             loop.run_forever()
         except KeyboardInterrupt:
             self.LOGGER(__name__).info("Shutting down...")
         finally:
             loop.run_until_complete(self.stop())
+
 
 if __name__ == "__main__":
     keep_alive()
