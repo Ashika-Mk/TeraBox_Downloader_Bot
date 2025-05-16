@@ -13,7 +13,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 #Bot token @Botfather
 
-TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "7324123854:AAE52Y3jOJUwQr7U1ScFEZX1QH1BHDftA10")
+TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "7324123854:AAHVoIBkvc4pik1jySqu6txttc0AuP1q6W0")
 
 
 #Your API ID from my.telegram.org
@@ -42,7 +42,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "7328629001"))
 
 #Port
 
-PORT = os.environ.get("PORT", "3417")
+PORT = os.environ.get("PORT", "3419")
 
 
 
