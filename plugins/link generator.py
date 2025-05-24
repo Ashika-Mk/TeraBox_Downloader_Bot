@@ -1,5 +1,31 @@
 # Don't remove This Line From Here. Tg: @rohit_1888 | @Javpostr
 
+import asyncio
+import base64
+import logging
+import os
+import random
+import re
+import string 
+import string as rohit
+import time
+from pyrogram import Client, filters, __version__
+from pyrogram.enums import ParseMode, ChatAction
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated
+from plugins.autoDelete import auto_del_notification, delete_message
+from bot import Bot
+from config import *
+from helper_func import *
+from database.database import *
+from database.database import db
+from database.db_premium import *
+from config import *
+from plugins.FORMATS import *
+from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid
+from datetime import datetime, timedelta
+from pytz import timezone
+
 @Client.on_message(filters.command("update"))
 async def update_bot(client, message):
     if message.from_user.id not in ADMINS:
