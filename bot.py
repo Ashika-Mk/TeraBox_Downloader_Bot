@@ -41,7 +41,7 @@ def home():
     return "Bot is running"
 
 def run_flask():
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5910)))
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5912)))
 
 def keep_alive():
     t = Thread(target=run_flask)
