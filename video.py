@@ -55,6 +55,92 @@ THUMBNAIL = "https://envs.sh/S-T.jpg"
 downloads_manager = {}
 
 
+async def fetch_download_link_async(url):
+    encoded_url = urllib.parse.quote(url)
+
+    # Create a session with appropriate headers and support for brotli compression
+    async with aiohttp.ClientSession(cookies=my_cookie) as my_session:
+        my_session.headers.update(my_headers)
+
+
+        # Manual fallback as last resort
+        try:
+            async with my_session.get(url, timeout=30) as response:
+                response.raise_for_status()
+                response_data = await response.text()
+
+            js_token = await find_between(response_data, 'fn%28%22', '%22%29')
+            log_id = await find_between(response_data, 'dp-logid=', '&')
+
+            if not js_token or not log_id:
+                logger.error("Required tokens not found.")
+                return None
+
+            request_url = str(response.url)
+            surl = None
+
+            # Try different methods to extract surl
+            if 'surl=' in request_url:
+                surl = request_url.split('surl=')[1].split('&')[0]
+            elif '/s/' in request_url:
+                surl = request_url.split('/s/')[1].split('?')[0]
+
+            if not surl:
+                logger.error("Could not extract surl parameter from URL")
+                return None
+
+            params = {
+                'app_id': '250528',
+                'web': '1',
+                'channel': 'dubox',
+                'clienttype': '0',
+                'jsToken': js_token,
+                'dplogid': log_id,
+                'page': '1',
+                'num': '20',
+                'order': 'time',
+                'desc': '1',
+                'site_referer': request_url,
+                'shorturl': surl,
+                'root': '1'
+            }
+
+            async with my_session.get('https://www.1024tera.com/share/list', params=params, timeout=30) as response2:
+                response_data2 = await response2.json()
+                if 'list' not in response_data2:
+                    logger.error("No list found in response.")
+                    return None
+
+                if response_data2['list'][0]['isdir'] == "1":
+                    params.update({
+                        'dir': response_data2['list'][0]['path'],
+                        'order': 'asc',
+                        'by': 'name',
+                        'dplogid': log_id
+                    })
+                    params.pop('desc')
+                    params.pop('root')
+
+                    async with my_session.get('https://www.1024tera.com/share/list', params=params, timeout=30) as response3:
+                        response_data3 = await response3.json()
+                        if 'list' not in response_data3:
+                            logger.error("No list found in nested directory response.")
+                            return None
+                        logger.info("Using file list from manual fallback (nested directory)")
+                        return response_data3['list']
+
+                logger.info("Using file list from manual fallback")
+                return response_data2['list']
+
+        except Exception as e:
+            import traceback
+            error_details = repr(e) if str(e) == "" else str(e)
+            logger.error(f"Final fallback failed: {error_details}")
+            logger.debug(f"Error traceback: {traceback.format_exc()}")
+            return None
+
+
+
 async def fetch_json(url: str) -> dict:
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
