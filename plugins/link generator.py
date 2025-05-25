@@ -25,6 +25,7 @@ from plugins.FORMATS import *
 from pyrogram.errors.exceptions.bad_request_400 import PeerIdInvalid
 from datetime import datetime, timedelta
 from pytz import timezone
+import subprocess 
 
 @Client.on_message(filters.command("update"))
 async def update_bot(client, message):
