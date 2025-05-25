@@ -29,7 +29,7 @@ import subprocess
 
 @Client.on_message(filters.command('update') & filters.private & is_admin)
 async def update_bot(client, message):
-    if message.from_user.id not OWNER_ID:
+    if message.from_user.id != OWNER_ID:
         return await message.reply_text("You are not authorized to update the bot.")
 
     try:
