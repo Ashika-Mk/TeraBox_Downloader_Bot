@@ -233,21 +233,22 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
 
 async def download_video(url, reply_msg, user_mention, user_id, client, db_channel_id, message, max_retries=3):
     try:
-        logging.info(f"Fetching video info: {url}")
+        logging.info(f"Fetching download list via fallback: {url}")
 
-        api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token={TERABOX_API_TOKEN}")
+        file_list = await fetch_download_link_async(url)
 
-        if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
-            raise Exception("Invalid API response format.")
+        if not file_list or not isinstance(file_list, list) or 'dlink' not in file_list[0]:
+            raise Exception("No downloadable file found or invalid format.")
 
-        data = api_response[0]
-        download_link = data["direct_link"]  # Use direct link instead of cookie-authenticated one
-        video_title = data["filename"]
-        file_size = int(data.get("size", 0))
-        thumb_url = data["thumbnail"]
+        # Pick the first file
+        file = file_list[0]
+        download_link = file.get('dlink') or file.get('downloadlink') or None
+        video_title = file.get('server_filename') or file.get('filename') or "video.mp4"
+        file_size = int(file.get('size', 0))
+        thumb_url = THUMBNAIL  # Static or generate based on file type
 
-        if file_size == 0:
-            raise Exception("Failed to get file size, download aborted.")
+        if not download_link or file_size == 0:
+            raise Exception("Missing download link or file size.")
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -262,11 +263,10 @@ async def download_video(url, reply_msg, user_mention, user_id, client, db_chann
                 await asyncio.sleep(3)
 
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-
         return file_path, thumb_url, video_title, None
 
     except Exception as e:
-        logging.error(f"Error: {e}", exc_info=True)
+        logging.error(f"Error in download_video: {e}", exc_info=True)
         return None, None, None, None
 
 
