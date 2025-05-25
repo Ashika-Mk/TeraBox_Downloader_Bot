@@ -27,9 +27,9 @@ from datetime import datetime, timedelta
 from pytz import timezone
 import subprocess 
 
-@Client.on_message(filters.command("update"))
+@Client.on_message(filters.command('update') & filters.private & is_admin)
 async def update_bot(client, message):
-    if message.from_user.id not in ADMINS:
+    if message.from_user.id not OWNER_ID:
         return await message.reply_text("You are not authorized to update the bot.")
 
     try:
