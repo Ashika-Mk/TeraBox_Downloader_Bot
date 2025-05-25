@@ -48,7 +48,16 @@ TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "85ebfdd8-77d5-4725-a3b6-3a03ba188a5c_7328629001"
 THUMBNAIL = "https://envs.sh/S-T.jpg"
 
-logger = logging.getLogger(__name__)
+# Setup logger
+logging.basicConfig(
+    level=logging.INFO,  # Change to DEBUG for more detailed logs
+    format="%(asctime)s [%(levelname)s] - %(name)s - %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger("TeraBoxDownloader")
 
 downloads_manager = {}
 
