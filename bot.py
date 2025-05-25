@@ -34,18 +34,18 @@ pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
 
 
 # Rename Flask app instance to avoid conflict
-flask_app = Flask(__name__)
+#flask_app = Flask(__name__)
 
-@flask_app.route('/')
-def home():
-    return "Bot is running"
+#@flask_app.route('/')
+#def home():
+    #return "Bot is running"
 
-def run_flask():
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5912)))
+#def run_flask():
+    #flask_app.run(host="0.0.0.0", #port=int(os.environ.get("PORT", 5912)))
 
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.start()
+#def keep_alive():
+    #t = Thread(target=run_flask)
+   # t.start()
 
 def get_indian_time():
     """Returns the current time in IST."""
@@ -123,5 +123,5 @@ class Bot(Client):
 
 
 if __name__ == "__main__":
-    keep_alive()
+    #keep_alive()
     Bot().run()
