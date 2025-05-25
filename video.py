@@ -48,6 +48,7 @@ TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "85ebfdd8-77d5-4725-a3b6-3a03ba188a5c_7328629001"
 THUMBNAIL = "https://envs.sh/S-T.jpg"
 
+logger = logging.getLogger(__name__)
 
 downloads_manager = {}
 
