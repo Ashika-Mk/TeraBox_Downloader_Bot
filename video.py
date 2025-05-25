@@ -54,12 +54,29 @@ THUMBNAIL = "https://envs.sh/S-T.jpg"
 
 downloads_manager = {}
 
+# headers
+my_headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Referer": "https://www.terabox.com/"
+}
+
+
+
+# Fetch cookie from environment
+cookie_string = "browserid=avLKUlrztrL0C84414VnnfWxLrQ1vJbslh4m8WCMxL7TZWIMpPdno52qQb27fk957PE6sUd5VZJ1ATlUe; TSID=DLpCxYPseu0EL2J5S2Hf36yFszAufv2G; ndus=Yd6IpupteHuieos8muZScO1E7xfuRT_csD6LBOF3; csrfToken=mKahcZKmznpDIODk5qQvF1YS; lang=en; __bid_n=1964760716d8bd55e14207; ndut_fmt=B7951F1AB0B1ECA11BDACDA093585A5F0F88DE80879A2413BE32F25A6B71C658"
+
+
 
 async def fetch_download_link_async(url):
     encoded_url = urllib.parse.quote(url)
 
     # Create a session with appropriate headers and support for brotli compression
-    async with aiohttp.ClientSession(cookies=my_cookie) as my_session:
+    async with aiohttp.ClientSession(cookies=cookie_string) as my_session:
         my_session.headers.update(my_headers)
 
 
