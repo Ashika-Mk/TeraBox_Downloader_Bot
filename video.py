@@ -115,44 +115,89 @@ async def resolve_shortlink(url):
         logger.error(f"❌ Failed to resolve shortlink: {e}")
         return url  # fallback
 
+
+def parse_size_string(size_str):
+    """Convert size string like '124.45 MB' to bytes"""
+    try:
+        if not size_str:
+            return 0
+        
+        size_str = size_str.strip().upper()
+        
+        # Extract number and unit
+        parts = size_str.split()
+        if len(parts) != 2:
+            return 0
+            
+        number = float(parts[0])
+        unit = parts[1]
+        
+        # Convert to bytes
+        multipliers = {
+            'B': 1,
+            'KB': 1024,
+            'MB': 1024 ** 2,
+            'GB': 1024 ** 3,
+            'TB': 1024 ** 4
+        }
+        
+        return int(number * multipliers.get(unit, 1))
+    except:
+        return 0
+
 async def fetch_download_link_async(url):
+    """Fetch download links using the specified API endpoint"""
     try:
         logger.info(f"🔄 Using API for URL: {url}")
+        
+        # API endpoint with URL parameter
         api_url = f"https://terabox-api.shahadathassan.workers.dev/?url={urllib.parse.quote(url)}"
-
+        
+        # Create session with timeout
         timeout = aiohttp.ClientTimeout(total=60, connect=15)
-
+        
         async with aiohttp.ClientSession(timeout=timeout, headers=my_headers) as session:
             try:
                 async with session.get(api_url) as response:
                     if response.status == 200:
                         api_data = await response.json()
-                        if api_data.get('status') == 'Success':
+                        logger.info(f"📊 API Response received successfully")
+                        
+                        # Check if response has the expected structure
+                        if 'status' in api_data and api_data.get('status') == 'Success':
                             files_data = api_data.get('data', [])
+                            
                             if not files_data:
                                 logger.warning("⚠️ No files found in API response")
                                 return None
-
+                            
+                            # Convert API response to our format
                             all_files = []
                             total_size = 0
-
+                            
                             for idx, file_info in enumerate(files_data):
+                                # Parse file information
                                 filename = file_info.get('Title', f'file_{idx}')
                                 size_str = file_info.get('Size', '0 B')
                                 download_url = file_info.get('Direct Download Link')
                                 thumbnails = file_info.get('Thumbnails', {})
-
+                                
+                                # Convert size to bytes
                                 file_size = parse_size_string(size_str)
                                 total_size += file_size
-
-                                thumb_info = {
-                                    'url1': thumbnails.get('60x60'),
-                                    'url2': thumbnails.get('140x90'),
-                                    'url3': thumbnails.get('360x270'),
-                                    'icon': thumbnails.get('850x580')
-                                }
-
-                                all_files.append({
+                                
+                                # Prepare thumbnail info
+                                thumb_info = {}
+                                if thumbnails:
+                                    thumb_info = {
+                                        'url1': thumbnails.get('60x60'),
+                                        'url2': thumbnails.get('140x90'),
+                                        'url3': thumbnails.get('360x270'),
+                                        'icon': thumbnails.get('850x580')
+                                    }
+                                
+                                # Create file object in our format
+                                file_obj = {
                                     'server_filename': filename,
                                     'size': file_size,
                                     'dlink': download_url,
@@ -162,30 +207,132 @@ async def fetch_download_link_async(url):
                                     'source': 'shahadat_api',
                                     'fs_id': f"api_{idx}",
                                     'isdir': 0
-                                })
-
-                            return {
+                                }
+                                
+                                all_files.append(file_obj)
+                                logger.info(f"✅ Processed file: {filename} ({size_str})")
+                            
+                            # Prepare result
+                            result = {
                                 'type': 'files',
                                 'files': all_files,
+                                'folders': [],
                                 'total_files': len(all_files),
+                                'files_with_download_links': len(all_files),
                                 'total_size': total_size,
+                                'folder_count': 1,
+                                'success_rate': "100.0%",
+                                'api_used': 'shahadat_hassan_api',
+                                'short_link': api_data.get('ShortLink', ''),
+                                'developer': api_data.get('developer', '')
+                            }
+                            
+                            logger.info(f"✅ Successfully processed {len(all_files)} files using Shahadat Hassan API")
+                            logger.info(f"📊 Total size: {format_size(total_size)}")
+                            return result
+                        
+                        # Handle different response structures
+                        elif 'files' in api_data or 'data' in api_data:
+                            # Try to handle different API response formats
+                            files_data = api_data.get('files', api_data.get('data', []))
+                            
+                            if not files_data:
+                                logger.warning("⚠️ No files found in API response")
+                                return None
+                            
+                            all_files = []
+                            total_size = 0
+                            
+                            for idx, file_info in enumerate(files_data):
+                                # Handle different field names
+                                filename = (file_info.get('Title') or 
+                                          file_info.get('filename') or 
+                                          file_info.get('server_filename') or 
+                                          f'file_{idx}')
+                                
+                                size_info = (file_info.get('Size') or 
+                                           file_info.get('size') or 
+                                           file_info.get('file_size') or 
+                                           '0 B')
+                                
+                                download_url = (file_info.get('Direct Download Link') or 
+                                              file_info.get('download_link') or 
+                                              file_info.get('dlink') or 
+                                              file_info.get('url'))
+                                
+                                thumbnails = (file_info.get('Thumbnails') or 
+                                            file_info.get('thumbnails') or 
+                                            file_info.get('thumbs') or {})
+                                
+                                # Convert size to bytes
+                                if isinstance(size_info, str):
+                                    file_size = parse_size_string(size_info)
+                                else:
+                                    file_size = int(size_info) if size_info else 0
+                                
+                                total_size += file_size
+                                
+                                # Prepare thumbnail info
+                                thumb_info = {}
+                                if isinstance(thumbnails, dict):
+                                    thumb_info = {
+                                        'url1': thumbnails.get('60x60'),
+                                        'url2': thumbnails.get('140x90'),
+                                        'url3': thumbnails.get('360x270'),
+                                        'icon': thumbnails.get('850x580')
+                                    }
+                                
+                                # Create file object in our format
+                                file_obj = {
+                                    'server_filename': filename,
+                                    'size': file_size,
+                                    'dlink': download_url,
+                                    'thumbs': thumb_info,
+                                    'parent_folder': 'root',
+                                    'folder_path': '/',
+                                    'source': 'shahadat_api',
+                                    'fs_id': f"api_{idx}",
+                                    'isdir': 0
+                                }
+                                
+                                all_files.append(file_obj)
+                                logger.info(f"✅ Processed file: {filename}")
+                            
+                            # Prepare result
+                            result = {
+                                'type': 'files',
+                                'files': all_files,
+                                'folders': [],
+                                'total_files': len(all_files),
+                                'files_with_download_links': len(all_files),
+                                'total_size': total_size,
+                                'folder_count': 1,
                                 'success_rate': "100.0%",
                                 'api_used': 'shahadat_hassan_api'
                             }
+                            
+                            logger.info(f"✅ Successfully processed {len(all_files)} files")
+                            return result
+                        
                         else:
-                            logger.error(f"❌ Unexpected API response: {api_data}")
+                            logger.error(f"❌ Unexpected API response format: {api_data}")
                             return None
+                    
                     else:
-                        logger.error(f"❌ API failed with status: {response.status}")
+                        logger.error(f"❌ API request failed with status: {response.status}")
+                        response_text = await response.text()
+                        logger.error(f"❌ Response: {response_text}")
                         return None
+                        
             except asyncio.TimeoutError:
                 logger.error("❌ API request timed out")
                 return None
             except Exception as e:
-                logger.error(f"❌ API fetch failed: {e}")
+                logger.error(f"❌ API request failed: {e}")
                 return None
+                
     except Exception as e:
-        logger.error(f"❌ fetch_download_link_async Error: {e}")
+        logger.error(f"❌ Error in fetch_download_link_async: {e}")
         return None
 
 
