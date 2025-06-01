@@ -74,373 +74,117 @@ def generate_thumbnail(video_path: str, output_path: str, time_position: int = 1
         return None
 
 
-logger = logging.getLogger(__name__)
+#rohit95 old token
 
-cookie_string = os.getenv(
-    "MY_COOKIE",
-    "browserid=avLKUlrztrL0C84414VnnfWxLrQ1vJblh4m8WCMxL7TZWIMpPdno52qQb27fk957PE6sUd5VZJ1ATlUe; TSID=DLpCxYPseu0EL2J5S2Hf36yFszAufv2G; ndus=Yd6IpupteHuieos8muZScO1E7xfuRT_csD6LBOF3; csrfToken=mKahcZKmznpDIODk5qQvF1YS; lang=en; __bid_n=1964760716d8bd55e14207; ndut_fmt=B7951F1AB0B1ECA11BDACDA093585A5F0F88DE80879A2413BE32F25A6B71C658"
-)
-
-# Parse string to cookie dict
-if cookie_string:
-    try:
-        my_cookie = dict(item.split("=", 1) for item in cookie_string.split("; ") if "=" in item)
-    except Exception as e:
-        logger.error(f"Error parsing cookie string: {e}")
-        my_cookie = {}
-else:
-    logger.warning("MY_COOKIE not set!")
-    my_cookie = {}
-
-my_headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Referer": "https://www.terabox.com/"
-}
-
-async def resolve_shortlink(url):
-    try:
-        timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout, headers=my_headers) as session:
-            async with session.get(url, allow_redirects=True) as response:
-                final_url = str(response.url)
-                logger.info(f"🔗 Resolved shortlink: {url} ➜ {final_url}")
-                return final_url
-    except Exception as e:
-        logger.error(f"❌ Failed to resolve shortlink: {e}")
-        return url  # fallback
+TERABOX_API_URL = "https://terabox.web.id"
+TERABOX_API_TOKEN = "85ebfdd8-77d5-4725-a3b6-3a03ba188a5c_7328629001"
+THUMBNAIL = "https://envs.sh/S-T.jpg"
 
 
-def parse_size_string(size_str):
-    """Convert size string like '124.45 MB' to bytes"""
-    try:
-        if not size_str:
-            return 0
-        
-        size_str = size_str.strip().upper()
-        
-        # Extract number and unit
-        parts = size_str.split()
-        if len(parts) != 2:
-            return 0
-            
-        number = float(parts[0])
-        unit = parts[1]
-        
-        # Convert to bytes
-        multipliers = {
-            'B': 1,
-            'KB': 1024,
-            'MB': 1024 ** 2,
-            'GB': 1024 ** 3,
-            'TB': 1024 ** 4
-        }
-        
-        return int(number * multipliers.get(unit, 1))
-    except:
-        return 0
-
-async def fetch_download_link_async(url):
-    """Fetch download links using the specified API endpoint"""
-    try:
-        logger.info(f"🔄 Using API for URL: {url}")
-        
-        # API endpoint with URL parameter
-        api_url = f"https://terabox-api.shahadathassan.workers.dev/?url={urllib.parse.quote(url)}"
-        
-        # Create session with timeout
-        timeout = aiohttp.ClientTimeout(total=60, connect=15)
-        
-        async with aiohttp.ClientSession(timeout=timeout, headers=my_headers) as session:
-            try:
-                async with session.get(api_url) as response:
-                    if response.status == 200:
-                        api_data = await response.json()
-                        logger.info(f"📊 API Response received successfully")
-                        
-                        # Check if response has the expected structure
-                        if 'status' in api_data and api_data.get('status') == 'Success':
-                            files_data = api_data.get('data', [])
-                            
-                            if not files_data:
-                                logger.warning("⚠️ No files found in API response")
-                                return None
-                            
-                            # Convert API response to our format
-                            all_files = []
-                            total_size = 0
-                            
-                            for idx, file_info in enumerate(files_data):
-                                # Parse file information
-                                filename = file_info.get('Title', f'file_{idx}')
-                                size_str = file_info.get('Size', '0 B')
-                                download_url = file_info.get('Direct Download Link')
-                                thumbnails = file_info.get('Thumbnails', {})
-                                
-                                # Convert size to bytes
-                                file_size = parse_size_string(size_str)
-                                total_size += file_size
-                                
-                                # Prepare thumbnail info
-                                thumb_info = {}
-                                if thumbnails:
-                                    thumb_info = {
-                                        'url1': thumbnails.get('60x60'),
-                                        'url2': thumbnails.get('140x90'),
-                                        'url3': thumbnails.get('360x270'),
-                                        'icon': thumbnails.get('850x580')
-                                    }
-                                
-                                # Create file object in our format
-                                file_obj = {
-                                    'server_filename': filename,
-                                    'size': file_size,
-                                    'dlink': download_url,
-                                    'thumbs': thumb_info,
-                                    'parent_folder': 'root',
-                                    'folder_path': '/',
-                                    'source': 'shahadat_api',
-                                    'fs_id': f"api_{idx}",
-                                    'isdir': 0
-                                }
-                                
-                                all_files.append(file_obj)
-                                logger.info(f"✅ Processed file: {filename} ({size_str})")
-                            
-                            # Prepare result
-                            result = {
-                                'type': 'files',
-                                'files': all_files,
-                                'folders': [],
-                                'total_files': len(all_files),
-                                'files_with_download_links': len(all_files),
-                                'total_size': total_size,
-                                'folder_count': 1,
-                                'success_rate': "100.0%",
-                                'api_used': 'shahadat_hassan_api',
-                                'short_link': api_data.get('ShortLink', ''),
-                                'developer': api_data.get('developer', '')
-                            }
-                            
-                            logger.info(f"✅ Successfully processed {len(all_files)} files using Shahadat Hassan API")
-                            logger.info(f"📊 Total size: {format_size(total_size)}")
-                            return result
-                        
-                        # Handle different response structures
-                        elif 'files' in api_data or 'data' in api_data:
-                            # Try to handle different API response formats
-                            files_data = api_data.get('files', api_data.get('data', []))
-                            
-                            if not files_data:
-                                logger.warning("⚠️ No files found in API response")
-                                return None
-                            
-                            all_files = []
-                            total_size = 0
-                            
-                            for idx, file_info in enumerate(files_data):
-                                # Handle different field names
-                                filename = (file_info.get('Title') or 
-                                          file_info.get('filename') or 
-                                          file_info.get('server_filename') or 
-                                          f'file_{idx}')
-                                
-                                size_info = (file_info.get('Size') or 
-                                           file_info.get('size') or 
-                                           file_info.get('file_size') or 
-                                           '0 B')
-                                
-                                download_url = (file_info.get('Direct Download Link') or 
-                                              file_info.get('download_link') or 
-                                              file_info.get('dlink') or 
-                                              file_info.get('url'))
-                                
-                                thumbnails = (file_info.get('Thumbnails') or 
-                                            file_info.get('thumbnails') or 
-                                            file_info.get('thumbs') or {})
-                                
-                                # Convert size to bytes
-                                if isinstance(size_info, str):
-                                    file_size = parse_size_string(size_info)
-                                else:
-                                    file_size = int(size_info) if size_info else 0
-                                
-                                total_size += file_size
-                                
-                                # Prepare thumbnail info
-                                thumb_info = {}
-                                if isinstance(thumbnails, dict):
-                                    thumb_info = {
-                                        'url1': thumbnails.get('60x60'),
-                                        'url2': thumbnails.get('140x90'),
-                                        'url3': thumbnails.get('360x270'),
-                                        'icon': thumbnails.get('850x580')
-                                    }
-                                
-                                # Create file object in our format
-                                file_obj = {
-                                    'server_filename': filename,
-                                    'size': file_size,
-                                    'dlink': download_url,
-                                    'thumbs': thumb_info,
-                                    'parent_folder': 'root',
-                                    'folder_path': '/',
-                                    'source': 'shahadat_api',
-                                    'fs_id': f"api_{idx}",
-                                    'isdir': 0
-                                }
-                                
-                                all_files.append(file_obj)
-                                logger.info(f"✅ Processed file: {filename}")
-                            
-                            # Prepare result
-                            result = {
-                                'type': 'files',
-                                'files': all_files,
-                                'folders': [],
-                                'total_files': len(all_files),
-                                'files_with_download_links': len(all_files),
-                                'total_size': total_size,
-                                'folder_count': 1,
-                                'success_rate': "100.0%",
-                                'api_used': 'shahadat_hassan_api'
-                            }
-                            
-                            logger.info(f"✅ Successfully processed {len(all_files)} files")
-                            return result
-                        
-                        else:
-                            logger.error(f"❌ Unexpected API response format: {api_data}")
-                            return None
-                    
-                    else:
-                        logger.error(f"❌ API request failed with status: {response.status}")
-                        response_text = await response.text()
-                        logger.error(f"❌ Response: {response_text}")
-                        return None
-                        
-            except asyncio.TimeoutError:
-                logger.error("❌ API request timed out")
-                return None
-            except Exception as e:
-                logger.error(f"❌ API request failed: {e}")
-                return None
-                
-    except Exception as e:
-        logger.error(f"❌ Error in fetch_download_link_async: {e}")
-        return None
+downloads_manager = {}
 
 
+async def fetch_json(url: str) -> dict:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            return await resp.json()
 
-async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
-    try:
-        logging.info(f"📥 Starting download for: {url}")
+async def download(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
+    sanitized_filename = filename.replace("/", "_").replace("\\", "_")
+    file_path = os.path.join(os.getcwd(), sanitized_filename)
 
-        # Step 1: Fetch download metadata from your API
-        resolved_url = await resolve_shortlink(url)
-        metadata = await fetch_download_link_async(resolved_url)
+    download_key = f"{user_id}-{sanitized_filename}"  # Unique key per file
+    downloads_manager[download_key] = {"downloaded": 0}
 
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=900)) as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise Exception(f"Failed to fetch video: HTTP {resp.status}")
 
-        if not metadata or not metadata.get("files"):
-            raise Exception("No downloadable files found from API.")
-
-        downloaded_files = []
-
-        for file_info in metadata["files"]:
-            download_link = file_info.get("dlink")
-            if not download_link:
-                logging.warning("⚠️ Skipping file with missing download link.")
-                continue
-
-            video_title = file_info.get("server_filename", f"file_{random.randint(1000,9999)}")
-            file_size = file_info.get("size", 0)
-            thumb_url = file_info.get("thumbs", {}).get("url3") or None
-            file_path = video_title
-            thumb_path = None
-
-            # Step 2: Download thumbnail (optional)
-            if thumb_url:
-                thumb_path = f"{video_title}.jpg"
-                try:
-                    async with aiohttp.ClientSession(headers=my_headers) as session:
-                        async with session.get(thumb_url) as response:
-                            if response.status == 200:
-                                async with aiofiles.open(thumb_path, "wb") as f:
-                                    await f.write(await response.read())
-                            else:
-                                thumb_path = None
-                except Exception as e:
-                    logging.warning(f"⚠️ Thumbnail download failed: {e}")
-                    thumb_path = None
-
-            if file_size == 0:
-                raise Exception(f"Missing or invalid file size for: {video_title}")
-
-            downloaded_size = 0
+            total_size = int(resp.headers.get("Content-Length", 0)) or file_size
             start_time = datetime.now()
             last_update_time = time.time()
 
-            # Step 3: Download the video with retries
-            for attempt in range(max_retries):
-                try:
-                    connector = aiohttp.TCPConnector(limit=6, ssl=False, force_close=True)
-                    async with aiohttp.ClientSession(connector=connector, cookies=my_cookie, headers=my_headers) as session:
-                        async with session.get(download_link, timeout=900) as response:
-                            if response.status not in [200, 206]:
-                                raise Exception(f"HTTP {response.status} on download.")
+            async def progress(current, total):
+                nonlocal last_update_time
+                percentage = (current / total) * 100 if total else 0
+                elapsed_time_seconds = (datetime.now() - start_time).total_seconds()
+                speed = current / elapsed_time_seconds if elapsed_time_seconds > 0 else 0
+                eta = (total - current) / speed if speed > 0 else 0
 
-                            async with aiofiles.open(file_path, "wb") as f:
-                                async for chunk in response.content.iter_chunked(4 * 1024 * 1024):
-                                    await f.write(chunk)
-                                    downloaded_size += len(chunk)
+                if time.time() - last_update_time > 2:
+                    progress_text = format_progress_bar(
+                        filename=filename,
+                        percentage=percentage,
+                        done=current,
+                        total_size=total,
+                        status="Downloading",
+                        eta=eta,
+                        speed=speed,
+                        elapsed=elapsed_time_seconds,
+                        user_mention=user_mention,
+                        user_id=user_id,
+                        aria2p_gid=""
+                    )
+                    try:
+                        await reply_msg.edit_text(progress_text)
+                        last_update_time = time.time()
+                    except Exception as e:
+                        logging.warning(f"Error updating progress message: {e}")
 
-                                    if time.time() - last_update_time > 2:
-                                        percent = min(100, (downloaded_size / file_size) * 100)
-                                        elapsed = (datetime.now() - start_time).total_seconds()
-                                        speed = downloaded_size / elapsed if elapsed else 0
-                                        eta = (file_size - downloaded_size) / speed if speed else 0
+            async with aiofiles.open(file_path, 'wb') as f:
+                while True:
+                    chunk = await resp.content.read(10 * 1024 * 1024)  # 10MB chunks
+                    if not chunk:
+                        break
+                    if downloads_manager[download_key]["downloaded"] + len(chunk) > total_size:
+                        logging.warning(f"Download exceeded expected size for {filename}. Stopping...")
+                        break
+                    await f.write(chunk)
+                    downloads_manager[download_key]['downloaded'] += len(chunk)
+                    await progress(downloads_manager[download_key]['downloaded'], total_size)
 
-                                        progress = format_progress_bar(
-                                            filename=video_title,
-                                            percentage=percent,
-                                            done=downloaded_size,
-                                            total_size=file_size,
-                                            status="Downloading",
-                                            eta=eta,
-                                            speed=speed,
-                                            elapsed=elapsed,
-                                            user_mention=user_mention,
-                                            user_id=user_id,
-                                            aria2p_gid=""
-                                        )
-                                        try:
-                                            await reply_msg.edit_text(progress)
-                                            last_update_time = time.time()
-                                        except:
-                                            pass
+    downloads_manager.pop(download_key, None)  # Cleanup after completion
+    return file_path
 
-                    logging.info(f"✅ Download complete: {file_path}")
-                    await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-                    downloaded_files.append((file_path, thumb_path, video_title, None))
-                    break
 
-                except Exception as e:
-                    logging.warning(f"❌ Attempt {attempt + 1}/{max_retries} failed for {video_title}: {e}")
-                    await asyncio.sleep(2)
+async def download_video(url, reply_msg, user_mention, user_id, client, db_channel_id, message, max_retries=3):
+    try:
+        logging.info(f"Fetching video info: {url}")
 
-            else:
-                logging.error(f"❌ All retries failed for: {video_title}")
+        api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token={TERABOX_API_TOKEN}")
 
-        return downloaded_files if downloaded_files else None
+        if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
+            raise Exception("Invalid API response format.")
+
+        data = api_response[0]
+        download_link = data["direct_link"]  # Use direct link instead of cookie-authenticated one
+        video_title = data["filename"]
+        file_size = int(data.get("size", 0))
+        thumb_url = data["thumbnail"]
+
+        if file_size == 0:
+            raise Exception("Failed to get file size, download aborted.")
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                file_path = await asyncio.create_task(
+                    download(download_link, user_id, video_title, reply_msg, user_mention, file_size)
+                )
+                break
+            except Exception as e:
+                logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
+                if attempt == max_retries:
+                    raise e
+                await asyncio.sleep(3)
+
+        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+
+        return file_path, thumb_url, video_title, None
 
     except Exception as e:
-        logging.error(f"❌ Final Error in download_video: {e}", exc_info=True)
-        return None
+        logging.error(f"Error: {e}", exc_info=True)
+        return None, None, None, None
 
 uploads_manager = {}
 
