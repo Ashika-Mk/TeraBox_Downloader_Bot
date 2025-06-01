@@ -103,7 +103,17 @@ my_headers = {
     "Referer": "https://www.terabox.com/"
 }
 
-
+async def resolve_shortlink(url):
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout, headers=my_headers) as session:
+            async with session.get(url, allow_redirects=True) as response:
+                final_url = str(response.url)
+                logger.info(f"🔗 Resolved shortlink: {url} ➜ {final_url}")
+                return final_url
+    except Exception as e:
+        logger.error(f"❌ Failed to resolve shortlink: {e}")
+        return url  # fallback
 
 async def fetch_download_link_async(url):
     try:
@@ -185,7 +195,10 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
         logging.info(f"📥 Starting download for: {url}")
 
         # Step 1: Fetch download metadata from your API
-        metadata = await fetch_download_link_async(url)
+        resolved_url = await resolve_shortlink(url)
+        metadata = await fetch_download_link_async(resolved_url)
+
+
         if not metadata or not metadata.get("files"):
             raise Exception("No downloadable files found from API.")
 
