@@ -214,7 +214,7 @@ async def handle_message(client: Client, message: Message):
                 logging.error(f"Download or upload error: {e}")
                 return await reply_msg.edit_text("❌ API returned a broken link or failed to upload.")
 
-       
+
 
         # **Free limit reached cases**
         else:
@@ -249,6 +249,3 @@ async def handle_message(client: Client, message: Message):
                 "⚠️ Free limit exceeded. Please purchase premium.",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
             )
-
-    # **Free Usage Disabled & Token Expired/Disabled**
-    
