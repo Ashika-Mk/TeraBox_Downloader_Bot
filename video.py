@@ -33,7 +33,9 @@ import aiohttp, aiofiles
 import mmap
 from shutil import which
 import subprocess
-from urllib.parse import urlparse
+#from urllib.parse import urlparse
+import urllib.parse
+
 
 
 def get_video_duration(file_path: str) -> int:
@@ -72,77 +74,163 @@ def generate_thumbnail(video_path: str, output_path: str, time_position: int = 1
         return None
 
 
+logger = logging.getLogger(__name__)
 
-
-COOKIE = (
-"browserid=avLKUlrztrL0C84414VnnfWxLrQ1vJblh4m8WCMxL7TZWIMpPdno52qQb27fk957PE6sUd5VZJ1ATlUe; TSID=DLpCxYPseu0EL2J5S2Hf36yFszAufv2G; ndus=Yd6IpupteHuieos8muZScO1E7xfuRT_csD6LBOF3; csrfToken=mKahcZKmznpDIODk5qQvF1YS; lang=en; __bid_n=1964760716d8bd55e14207; ndut_fmt=B7951F1AB0B1ECA11BDACDA093585A5F0F88DE80879A2413BE32F25A6B71C658;"
+cookie_string = os.getenv(
+    "MY_COOKIE",
+    "browserid=avLKUlrztrL0C84414VnnfWxLrQ1vJblh4m8WCMxL7TZWIMpPdno52qQb27fk957PE6sUd5VZJ1ATlUe; TSID=DLpCxYPseu0EL2J5S2Hf36yFszAufv2G; ndus=Yd6IpupteHuieos8muZScO1E7xfuRT_csD6LBOF3; csrfToken=mKahcZKmznpDIODk5qQvF1YS; lang=en; __bid_n=1964760716d8bd55e14207; ndut_fmt=B7951F1AB0B1ECA11BDACDA093585A5F0F88DE80879A2413BE32F25A6B71C658"
 )
+
+# Parse string to cookie dict
+if cookie_string:
+    try:
+        my_cookie = dict(item.split("=", 1) for item in cookie_string.split("; ") if "=" in item)
+    except Exception as e:
+        logger.error(f"Error parsing cookie string: {e}")
+        my_cookie = {}
+else:
+    logger.warning("MY_COOKIE not set!")
+    my_cookie = {}
+
+my_headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Referer": "https://www.terabox.com/"
+}
+
+
+
+async def fetch_download_link_async(url):
+    try:
+        logger.info(f"🔄 Using API for URL: {url}")
+        api_url = f"https://terabox-api.shahadathassan.workers.dev/?url={urllib.parse.quote(url)}"
+
+        timeout = aiohttp.ClientTimeout(total=60, connect=15)
+
+        async with aiohttp.ClientSession(timeout=timeout, headers=my_headers) as session:
+            try:
+                async with session.get(api_url) as response:
+                    if response.status == 200:
+                        api_data = await response.json()
+                        if api_data.get('status') == 'Success':
+                            files_data = api_data.get('data', [])
+                            if not files_data:
+                                logger.warning("⚠️ No files found in API response")
+                                return None
+
+                            all_files = []
+                            total_size = 0
+
+                            for idx, file_info in enumerate(files_data):
+                                filename = file_info.get('Title', f'file_{idx}')
+                                size_str = file_info.get('Size', '0 B')
+                                download_url = file_info.get('Direct Download Link')
+                                thumbnails = file_info.get('Thumbnails', {})
+
+                                file_size = parse_size_string(size_str)
+                                total_size += file_size
+
+                                thumb_info = {
+                                    'url1': thumbnails.get('60x60'),
+                                    'url2': thumbnails.get('140x90'),
+                                    'url3': thumbnails.get('360x270'),
+                                    'icon': thumbnails.get('850x580')
+                                }
+
+                                all_files.append({
+                                    'server_filename': filename,
+                                    'size': file_size,
+                                    'dlink': download_url,
+                                    'thumbs': thumb_info,
+                                    'parent_folder': 'root',
+                                    'folder_path': '/',
+                                    'source': 'shahadat_api',
+                                    'fs_id': f"api_{idx}",
+                                    'isdir': 0
+                                })
+
+                            return {
+                                'type': 'files',
+                                'files': all_files,
+                                'total_files': len(all_files),
+                                'total_size': total_size,
+                                'success_rate': "100.0%",
+                                'api_used': 'shahadat_hassan_api'
+                            }
+                        else:
+                            logger.error(f"❌ Unexpected API response: {api_data}")
+                            return None
+                    else:
+                        logger.error(f"❌ API failed with status: {response.status}")
+                        return None
+            except asyncio.TimeoutError:
+                logger.error("❌ API request timed out")
+                return None
+            except Exception as e:
+                logger.error(f"❌ API fetch failed: {e}")
+                return None
+    except Exception as e:
+        logger.error(f"❌ fetch_download_link_async Error: {e}")
+        return None
+
+
 
 async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
     try:
-        logging.info(f"Fetching video info: {url}")
+        logging.info(f"📥 Starting download for: {url}")
 
-        # Step 1: Fetch video metadata
-        async with aiohttp.ClientSession() as session:
-            api_url = f"https://api-gules-one-93.vercel.app/api/download?url={url}&token=TERAXBOTZ"
-            async with session.get(api_url) as response:
-                if response.status != 200:
-                    raise Exception("Failed to fetch metadata.")
-                json_data = await response.json()
-
-        if not json_data.get("success") or not json_data.get("data"):
-            raise Exception("API returned invalid structure.")
+        # Step 1: Fetch download metadata from your API
+        metadata = await fetch_download_link_async(url)
+        if not metadata or not metadata.get("files"):
+            raise Exception("No downloadable files found from API.")
 
         downloaded_files = []
 
-        for file_info in json_data["data"]:
-            download_link = file_info["direct_link"] + f"&nocache={random.randint(1000, 9999)}"
-            video_title = file_info["filename"]
-            file_size = int(file_info.get("sizebytes", 0))
-            thumb_url = file_info.get("thumb")
+        for file_info in metadata["files"]:
+            download_link = file_info.get("dlink")
+            if not download_link:
+                logging.warning("⚠️ Skipping file with missing download link.")
+                continue
+
+            video_title = file_info.get("server_filename", f"file_{random.randint(1000,9999)}")
+            file_size = file_info.get("size", 0)
+            thumb_url = file_info.get("thumbs", {}).get("url3") or None
             file_path = video_title
             thumb_path = None
 
-            # Step 2: Download thumbnail
+            # Step 2: Download thumbnail (optional)
             if thumb_url:
                 thumb_path = f"{video_title}.jpg"
                 try:
-                    async with aiohttp.ClientSession() as session:
+                    async with aiohttp.ClientSession(headers=my_headers) as session:
                         async with session.get(thumb_url) as response:
                             if response.status == 200:
                                 async with aiofiles.open(thumb_path, "wb") as f:
                                     await f.write(await response.read())
                             else:
                                 thumb_path = None
-                except Exception:
+                except Exception as e:
+                    logging.warning(f"⚠️ Thumbnail download failed: {e}")
                     thumb_path = None
 
             if file_size == 0:
-                raise Exception("Missing file size.")
-
-            parsed = urlparse(download_link)
-            cdn_host = parsed.hostname or "www.terabox.com"
-
-            headers = {
-                "User-Agent": "netdisk;P2SP;2.2.60.26",
-                "Referer": "https://www.terabox.com/",
-                "Origin": "https://www.terabox.com",
-                "Accept-Encoding": "identity",
-                "Connection": "Keep-Alive",
-                "Host": cdn_host,
-                "Cookie": COOKIE,
-            }
+                raise Exception(f"Missing or invalid file size for: {video_title}")
 
             downloaded_size = 0
             start_time = datetime.now()
             last_update_time = time.time()
 
+            # Step 3: Download the video with retries
             for attempt in range(max_retries):
                 try:
                     connector = aiohttp.TCPConnector(limit=6, ssl=False, force_close=True)
-
-                    async with aiohttp.ClientSession(connector=connector) as session:
-                        async with session.get(download_link, headers=headers, timeout=900) as response:
+                    async with aiohttp.ClientSession(connector=connector, cookies=my_cookie, headers=my_headers) as session:
+                        async with session.get(download_link, timeout=900) as response:
                             if response.status not in [200, 206]:
                                 raise Exception(f"HTTP {response.status} on download.")
 
@@ -176,22 +264,22 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=5):
                                         except:
                                             pass
 
-                    logging.info(f"Download complete: {file_path}")
+                    logging.info(f"✅ Download complete: {file_path}")
                     await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
                     downloaded_files.append((file_path, thumb_path, video_title, None))
                     break
 
                 except Exception as e:
-                    logging.warning(f"Attempt {attempt + 1}/{max_retries} failed: {e}")
+                    logging.warning(f"❌ Attempt {attempt + 1}/{max_retries} failed for {video_title}: {e}")
                     await asyncio.sleep(2)
 
             else:
-                logging.error(f"All retries failed for: {video_title}")
+                logging.error(f"❌ All retries failed for: {video_title}")
 
         return downloaded_files if downloaded_files else None
 
     except Exception as e:
-        logging.error(f"Final Error: {e}", exc_info=True)
+        logging.error(f"❌ Final Error in download_video: {e}", exc_info=True)
         return None
 
 uploads_manager = {}
