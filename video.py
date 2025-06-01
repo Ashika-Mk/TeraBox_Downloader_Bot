@@ -35,7 +35,10 @@ import mmap
 from shutil import which
 import subprocess
 
-import urllib.parse
+import os
+import aiohttp
+import aiofiles
+import random
 import asyncio
 import logging
 import time
@@ -48,135 +51,8 @@ TERABOX_API_URL = "https://terabox.web.id"
 TERABOX_API_TOKEN = "85ebfdd8-77d5-4725-a3b6-3a03ba188a5c_7328629001"
 THUMBNAIL = "https://envs.sh/S-T.jpg"
 
-# Setup logger
-logging.basicConfig(
-    level=logging.INFO,  # Change to DEBUG for more detailed logs
-    format="%(asctime)s [%(levelname)s] - %(name)s - %(message)s",
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger("TeraBoxDownloader")
 
 downloads_manager = {}
-
-# headers
-my_headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Referer": "https://www.terabox.com/"
-}
-
-
-
-# Fetch cookie from environment
-cookie_string = "browserid=avLKUlrztrL0C84414VnnfWxLrQ1vJbslh4m8WCMxL7TZWIMpPdno52qQb27fk957PE6sUd5VZJ1ATlUe; TSID=DLpCxYPseu0EL2J5S2Hf36yFszAufv2G; ndus=Yd6IpupteHuieos8muZScO1E7xfuRT_csD6LBOF3; csrfToken=mKahcZKmznpDIODk5qQvF1YS; lang=en; __bid_n=1964760716d8bd55e14207; ndut_fmt=B7951F1AB0B1ECA11BDACDA093585A5F0F88DE80879A2413BE32F25A6B71C658"
-
-# Convert cookie string to dict
-cookies_dict = dict(item.strip().split("=", 1) for item in cookie_string.split(";"))
-
-
-async def find_between(string, start, end):
-    start_index = string.find(start) + len(start)
-    end_index = string.find(end, start_index)
-    return string[start_index:end_index]
-
-
-async def find_between(text, start, end):
-    try:
-        return text.split(start)[1].split(end)[0]
-    except IndexError:
-        return None
-
-async def fetch_download_link_async(url):
-    encoded_url = urllib.parse.quote(url)
-
-    # Create a session with appropriate headers and support for brotli compression
-    async with aiohttp.ClientSession(cookies=cookies_dict) as my_session:
-        my_session.headers.update(my_headers)
-
-
-        # Manual fallback as last resort
-        try:
-            async with my_session.get(url, timeout=30) as response:
-                response.raise_for_status()
-                response_data = await response.text()
-
-            js_token = await find_between(response_data, 'fn%28%22', '%22%29')
-            log_id = await find_between(response_data, 'dp-logid=', '&')
-
-            if not js_token or not log_id:
-                logger.error("Required tokens not found.")
-                return None
-
-            request_url = str(response.url)
-            surl = None
-
-            # Try different methods to extract surl
-            if 'surl=' in request_url:
-                surl = request_url.split('surl=')[1].split('&')[0]
-            elif '/s/' in request_url:
-                surl = request_url.split('/s/')[1].split('?')[0]
-
-            if not surl:
-                logger.error("Could not extract surl parameter from URL")
-                return None
-
-            params = {
-                'app_id': '250528',
-                'web': '1',
-                'channel': 'dubox',
-                'clienttype': '0',
-                'jsToken': js_token,
-                'dplogid': log_id,
-                'page': '1',
-                'num': '20',
-                'order': 'time',
-                'desc': '1',
-                'site_referer': request_url,
-                'shorturl': surl,
-                'root': '1'
-            }
-
-            async with my_session.get('https://www.1024tera.com/share/list', params=params, timeout=30) as response2:
-                response_data2 = await response2.json()
-                if 'list' not in response_data2:
-                    logger.error("No list found in response.")
-                    return None
-
-                if response_data2['list'][0]['isdir'] == "1":
-                    params.update({
-                        'dir': response_data2['list'][0]['path'],
-                        'order': 'asc',
-                        'by': 'name',
-                        'dplogid': log_id
-                    })
-                    params.pop('desc')
-                    params.pop('root')
-
-                    async with my_session.get('https://www.1024tera.com/share/list', params=params, timeout=30) as response3:
-                        response_data3 = await response3.json()
-                        if 'list' not in response_data3:
-                            logger.error("No list found in nested directory response.")
-                            return None
-                        logger.info("Using file list from manual fallback (nested directory)")
-                        return response_data3['list']
-
-                logger.info("Using file list from manual fallback")
-                return response_data2['list']
-
-        except Exception as e:
-            import traceback
-            error_details = repr(e) if str(e) == "" else str(e)
-            logger.error(f"Final fallback failed: {error_details}")
-            logger.debug(f"Error traceback: {traceback.format_exc()}")
-            return None
-
 
 
 async def fetch_json(url: str) -> dict:
@@ -245,22 +121,21 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
 
 async def download_video(url, reply_msg, user_mention, user_id, client, db_channel_id, message, max_retries=3):
     try:
-        logging.info(f"Fetching download list via fallback: {url}")
+        logging.info(f"Fetching video info: {url}")
 
-        file_list = await fetch_download_link_async(url)
+        api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token={TERABOX_API_TOKEN}")
 
-        if not file_list or not isinstance(file_list, list) or 'dlink' not in file_list[0]:
-            raise Exception("No downloadable file found or invalid format.")
+        if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
+            raise Exception("Invalid API response format.")
 
-        # Pick the first file
-        file = file_list[0]
-        download_link = file.get('dlink') or file.get('downloadlink') or None
-        video_title = file.get('server_filename') or file.get('filename') or "video.mp4"
-        file_size = int(file.get('size', 0))
-        thumb_url = THUMBNAIL  # Static or generate based on file type
+        data = api_response[0]
+        download_link = data["direct_link"]  # Use direct link instead of cookie-authenticated one
+        video_title = data["filename"]
+        file_size = int(data.get("size", 0))
+        thumb_url = data["thumbnail"]
 
-        if not download_link or file_size == 0:
-            raise Exception("Missing download link or file size.")
+        if file_size == 0:
+            raise Exception("Failed to get file size, download aborted.")
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -275,10 +150,11 @@ async def download_video(url, reply_msg, user_mention, user_id, client, db_chann
                 await asyncio.sleep(3)
 
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+
         return file_path, thumb_url, video_title, None
 
     except Exception as e:
-        logging.error(f"Error in download_video: {e}", exc_info=True)
+        logging.error(f"Error: {e}", exc_info=True)
         return None, None, None, None
 
 
@@ -388,7 +264,7 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             message_id=collection_message.id
         )
 
-        caption = "" if HIDE_CAPTION else f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
+        caption = "" if HIDE_CAPTION else f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @trinityXmods </b>"
         reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=button_name, url=button_link)]]) if CHNL_BTN else None
 
         await copied_msg.edit_caption(
