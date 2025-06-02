@@ -156,7 +156,7 @@ async def handle_message(client: Client, message: Message):
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            asyncio.create_task(upload_video(
+            asyncio.create_task(upload_videos(
                 client=client,
                 file_path=file_path,
                 video_title=video_title,
@@ -190,7 +190,7 @@ async def handle_message(client: Client, message: Message):
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            asyncio.create_task(upload_video(
+            asyncio.create_task(upload_videos(
                 client=client,
                 file_path=file_path,
                 video_title=video_title,
@@ -231,7 +231,7 @@ async def handle_message(client: Client, message: Message):
                 if file_path is None:
                     return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-                asyncio.create_task(upload_video(
+                asyncio.create_task(upload_videos(
                     client=client,
                     file_path=file_path,
                     video_title=video_title,
