@@ -156,15 +156,7 @@ async def handle_message(client: Client, message: Message):
             if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            asyncio.create_task(upload_videos(
-                client=client,
-                file_path=file_path,
-                video_title=video_title,
-                reply_msg=reply_msg,
-                db_channel_id=db_channel_id,
-                user_mention=user_mention,
-                user_id=user_id,
-                message=message
+            asyncio.create_task(upload_videos(client, files_data, reply_msg, db_channel_id, user_mention, user_id, message
             ))
 
             await premium_msg.delete()
