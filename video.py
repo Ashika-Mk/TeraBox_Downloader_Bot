@@ -557,10 +557,8 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
             )
             button_name, button_link = await db.get_channel_button_link() if CHNL_BTN else (None, None)
 
-            # Thumbnail + duration setup
-            thumbnail_path = thumb_path or f"{file_path}.jpg"
-            if thumbnail_path and not os.path.exists(thumbnail_path):
-                thumbnail_path = generate_thumbnail(file_path, thumbnail_path)
+            # Always generate thumbnail before upload
+            thumbnail_path = generate_thumbnail(file_path, f"{file_path}.jpg")
             duration = get_video_duration(file_path)
 
             # Upload progress callback
@@ -596,7 +594,7 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
                 chat_id=db_channel_id,
                 video=file_path,
                 caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
-                thumb=thumbnail_path if thumbnail_path and os.path.exists(thumbnail_path) else None,
+                thumb=thumbnail_path if os.path.exists(thumbnail_path) else None,
                 duration=duration,
                 supports_streaming=True,
                 progress=progress,
@@ -640,14 +638,14 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
             try:
                 if os.path.exists(file_path):
                     os.remove(file_path)
-                if thumb_path and os.path.exists(thumb_path):
-                    os.remove(thumb_path)
+                if thumbnail_path and os.path.exists(thumbnail_path):
+                    os.remove(thumbnail_path)
                 await message.delete()
                 await reply_msg.delete()
             except Exception as e:
                 logging.warning(f"Cleanup error: {e}")
 
-    # Unpack each item in files_data (ensure each tuple has 3 items: path, thumb, title)
+    # Prepare all upload tasks
     upload_tasks = [
         asyncio.create_task(upload_single_file(file_path, thumb_path, video_title))
         for file_path, thumb_path, video_title in files_data
