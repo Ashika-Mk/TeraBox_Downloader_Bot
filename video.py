@@ -569,22 +569,11 @@ async def download_video(url, reply_msg, user_mention, user_id, client, db_chann
         await reply_msg.edit_text(f"❌ Error: {str(e)}")
         return None, None, None, None
 
+#------###$$
 
 uploads_manager = {}
 
 async def upload_videos(client, files_data, reply_msg, db_channel_id, user_mention, user_id, message):
-    """
-    Upload multiple files concurrently.
-
-    :param client: Telegram client
-    :param files_data: List of tuples [(file_path, thumb_path, video_title), ...]
-    :param reply_msg: Message to update progress
-    :param db_channel_id: Channel ID to upload files
-    :param user_mention: User mention string
-    :param user_id: User ID
-    :param message: Original user message (for cleanup)
-    :return: List of message IDs of uploaded files
-    """
     uploads_manager.setdefault(user_id, [])
 
     async def upload_single_file(file_path, thumb_path, video_title):
@@ -665,7 +654,6 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
             if AUTO_DEL:
                 asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
-            # Send sticker and delete after 5 seconds
             sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
             await asyncio.sleep(5)
             await sticker_msg.delete()
@@ -690,13 +678,11 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
             except Exception as e:
                 logging.warning(f"Cleanup error: {e}")
 
-    # Create upload tasks for all files
+    # ✅ Correct unpacking here
     upload_tasks = [
         asyncio.create_task(upload_single_file(file_path, thumb_path, video_title))
-        for file_path, thumb_path, video_title, _ in files_data
+        for file_path, thumb_path, video_title in files_data
     ]
 
-    # Await all uploads to finish
     results = await asyncio.gather(*upload_tasks)
-
     return results
