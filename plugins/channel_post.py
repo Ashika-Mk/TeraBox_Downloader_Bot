@@ -132,7 +132,7 @@ async def handle_message(client: Client, message: Message):
         'terabox.com', 'nephobox.com', '4funbox.com', 'mirrobox.com',
         'momerybox.com', 'teraboxapp.com', '1024tera.com',
         'terabox.app', 'gibibox.com', 'goaibox.com', 'terasharelink.com',
-        'teraboxlink.com', 'terafileshare.com'
+        'teraboxlink.com', 'terafileshare.com', 'teraboxshare.com'
     ]
 
     if not any(domain in message_text for domain in valid_domains):
