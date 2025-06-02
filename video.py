@@ -550,18 +550,20 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
             start_time = datetime.now()
             last_update_time = time.time()
 
+            # Fetch DB settings concurrently
             AUTO_DEL, DEL_TIMER, HIDE_CAPTION, CHNL_BTN, PROTECT_MODE = await asyncio.gather(
                 db.get_auto_delete(), db.get_del_timer(), db.get_hide_caption(),
                 db.get_channel_button(), db.get_protect_content()
             )
             button_name, button_link = await db.get_channel_button_link() if CHNL_BTN else (None, None)
 
-            # Thumbnail + duration
+            # Thumbnail + duration setup
             thumbnail_path = thumb_path or f"{file_path}.jpg"
-            if not os.path.exists(thumbnail_path):
+            if thumbnail_path and not os.path.exists(thumbnail_path):
                 thumbnail_path = generate_thumbnail(file_path, thumbnail_path)
             duration = get_video_duration(file_path)
 
+            # Upload progress callback
             async def progress(current, total):
                 nonlocal uploaded, last_update_time
                 uploaded = current
@@ -594,14 +596,14 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
                 chat_id=db_channel_id,
                 video=file_path,
                 caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
-                thumb=thumbnail_path if os.path.exists(thumbnail_path) else None,
+                thumb=thumbnail_path if thumbnail_path and os.path.exists(thumbnail_path) else None,
                 duration=duration,
                 supports_streaming=True,
                 progress=progress,
                 protect_content=PROTECT_MODE
             )
 
-            # Copy to user
+            # Copy to user chat
             copied_msg = await client.copy_message(
                 chat_id=message.chat.id,
                 from_chat_id=db_channel_id,
@@ -620,6 +622,7 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
             if AUTO_DEL:
                 asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
+            # Send sticker
             sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
             await asyncio.sleep(5)
             await sticker_msg.delete()
@@ -633,7 +636,7 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
         finally:
             uploads_manager[user_id].remove(file_path)
             if not uploads_manager[user_id]:
-                uploads_manager.pop(user_id)
+                uploads_manager.pop(user_id, None)
             try:
                 if os.path.exists(file_path):
                     os.remove(file_path)
@@ -644,7 +647,7 @@ async def upload_videos(client, files_data, reply_msg, db_channel_id, user_menti
             except Exception as e:
                 logging.warning(f"Cleanup error: {e}")
 
-    # ✅ Correct unpacking here
+    # Unpack each item in files_data (ensure each tuple has 3 items: path, thumb, title)
     upload_tasks = [
         asyncio.create_task(upload_single_file(file_path, thumb_path, video_title))
         for file_path, thumb_path, video_title in files_data
