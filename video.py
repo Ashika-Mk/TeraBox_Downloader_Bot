@@ -365,7 +365,7 @@ async def download_single(url: str, user_id: int, filename: str, reply_msg, user
     return file_path
 
 # Update the main download function to use parallel downloading
-async def download_video(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
+async def download(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
     """Main download function with parallel support"""
     try:
         # Try parallel download first for large files
@@ -377,6 +377,197 @@ async def download_video(url: str, user_id: int, filename: str, reply_msg, user_
         logging.warning(f"Parallel download failed, falling back to single-threaded: {e}")
         return await download_single(url, user_id, filename, reply_msg, user_mention, file_size)
 
+
+
+def format_size(size_bytes):
+    """Format file size in human readable format"""
+    try:
+        size_bytes = int(size_bytes)
+        if size_bytes >= 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+        elif size_bytes >= 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.2f} MB"
+        elif size_bytes >= 1024:
+            return f"{size_bytes / 1024:.2f} KB"
+        return f"{size_bytes} bytes"
+    except (ValueError, TypeError):
+        return "Unknown size"
+
+
+async def download(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
+    sanitized_filename = filename.replace("/", "_").replace("\\", "_").replace(":", "_").replace("?", "_").replace("*", "_").replace("|", "_").replace("<", "_").replace(">", "_").replace('"', "_")
+    file_path = os.path.join(os.getcwd(), sanitized_filename)
+
+    download_key = f"{user_id}-{sanitized_filename}"
+    downloads_manager[download_key] = {"downloaded": 0}
+
+    # Production headers with rotation
+    headers_list = [
+        {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.terabox.com/',
+            'Cookie': TERABOX_COOKIES
+        },
+        {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://dm.1024tera.com/',
+            'Cookie': TERABOX_COOKIES
+        }
+    ]
+
+    # Production connector with conservative settings
+    connector = aiohttp.TCPConnector(
+        limit=150,
+        limit_per_host=110,
+        ttl_dns_cache=3600,
+        use_dns_cache=True,
+        keepalive_timeout=900,
+        enable_cleanup_closed=True,
+        ssl=False
+    )
+
+    timeout = aiohttp.ClientTimeout(
+        total=None,
+        connect=60,
+        sock_read=300
+    )
+
+    for attempt in range(3):
+        try:
+            headers = random.choice(headers_list)
+
+            async with aiohttp.ClientSession(
+                connector=connector, 
+                headers=headers, 
+                timeout=timeout
+            ) as session:
+                async with session.get(url) as resp:
+                    if resp.status not in [200, 206]:
+                        raise Exception(f"HTTP {resp.status}")
+
+                    total_size = int(resp.headers.get("Content-Length", 0)) or file_size
+                    start_time = datetime.now()
+                    last_update_time = time.time()
+
+                    async def progress(current, total):
+                        nonlocal last_update_time
+                        if time.time() - last_update_time > 3:  # Reduce update frequency for production
+                            percentage = (current / total) * 100 if total else 0
+                            elapsed = (datetime.now() - start_time).total_seconds()
+                            speed = current / elapsed if elapsed > 0 else 0
+                            eta = (total - current) / speed if speed > 0 else 0
+
+                            progress_text = format_progress_bar(
+                                filename=filename, percentage=percentage, done=current,
+                                total_size=total, status="Dᴏᴡɴʟᴏᴀᴅɪɴɢ..", eta=eta,
+                                speed=speed, elapsed=elapsed, user_mention=user_mention,
+                                user_id=user_id, aria2p_gid=""
+                            )
+                            try:
+                                await reply_msg.edit_text(progress_text)
+                                last_update_time = time.time()
+                            except:
+                                pass
+
+                    async with aiofiles.open(file_path, 'wb') as f:
+                        chunk_size = 10 * 1024 * 1024  # Smaller chunks for production stability
+
+                        async for chunk in resp.content.iter_chunked(chunk_size):
+                            if not chunk:
+                                break
+                            await f.write(chunk)
+                            downloads_manager[download_key]['downloaded'] += len(chunk)
+                            await progress(downloads_manager[download_key]['downloaded'], total_size)
+
+            downloads_manager.pop(download_key, None)
+            return file_path
+
+        except Exception as e:
+            logging.warning(f"Download attempt {attempt + 1} failed: {e}")
+            if attempt < 2:
+                await asyncio.sleep(5)
+            else:
+                raise e
+
+async def download_video(url, reply_msg, user_mention, user_id, client, db_channel_id, message, max_retries=3):
+    try:
+        logging.info(f"Starting TeraBox scraping for: {url}")
+
+        # Use direct scraping instead of API
+        files = await process_shared_content(url)
+
+        if not files:
+            raise Exception("No files found or failed to scrape TeraBox content.")
+
+        # Handle single file or multiple files
+        if len(files) == 1:
+            # Single file download
+            file_data = files[0]
+            download_link = file_data["download_url"]
+            video_title = file_data["file_name"]
+            file_size = int(file_data["size_bytes"])
+            thumb_url = file_data["thumbnails"].get("url3", "") if file_data["thumbnails"] else ""
+
+            if file_size == 0:
+                raise Exception("Failed to get file size, download aborted.")
+
+            for attempt in range(1, max_retries + 1):
+                try:
+                    file_path = await asyncio.create_task(
+                        download(download_link, user_id, video_title, reply_msg, user_mention, file_size)
+                    )
+                    break
+                except Exception as e:
+                    logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
+                    if attempt == max_retries:
+                        raise e
+                    await asyncio.sleep(3)
+            try:
+                await update_download_stats(user_id, file_size, video_title)
+            except Exception as e:
+                logging.warning(f"Failed to update download stats: {e}")
+
+            await reply_msg.edit_text(f"✅ Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ..!\n📂 {video_title}")
+            return file_path, thumb_url, video_title, None
+
+        else:
+            # Multiple files - download first file automatically
+            file_data = files[0]
+            download_link = file_data["download_url"]
+            video_title = file_data["file_name"]
+            file_size = int(file_data["size_bytes"])
+            thumb_url = file_data["thumbnails"].get("url3", "") if file_data["thumbnails"] else ""
+
+            if file_size == 0:
+                raise Exception("Failed to get file size, download aborted.")
+
+            for attempt in range(1, max_retries + 1):
+                try:
+                    file_path = await asyncio.create_task(
+                        download(download_link, user_id, video_title, reply_msg, user_mention, file_size)
+                    )
+                    break
+                except Exception as e:
+                    logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
+                    if attempt == max_retries:
+                        raise e
+                    await asyncio.sleep(3)
+            try:
+                await update_download_stats(user_id, file_size, video_title)
+            except Exception as e:
+                logging.warning(f"Failed to update download stats: {e}")
+
+            await reply_msg.edit_text(f"✅ Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ..!\n📂 {video_title}")
+            return file_path, thumb_url, video_title, None
+
+    except Exception as e:
+        logging.error(f"Error in download_video: {e}", exc_info=True)
+        await reply_msg.edit_text(f"❌ Error: {str(e)}")
+        return None, None, None, None
 
 
 uploads_manager = {}
