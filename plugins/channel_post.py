@@ -141,7 +141,7 @@ async def handle_message(client: Client, message: Message):
     # Process the link
     reply_msg = await message.reply_text("🔄 Processing your link, please wait...")
 
-    #files_data = []
+    files_data = []
 
           
     if is_premium:
