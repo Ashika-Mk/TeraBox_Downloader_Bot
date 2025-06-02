@@ -503,71 +503,37 @@ async def download_video(url, reply_msg, user_mention, user_id, client, db_chann
         if not files:
             raise Exception("No files found or failed to scrape TeraBox content.")
 
-        # Handle single file or multiple files
-        if len(files) == 1:
-            # Single file download
-            file_data = files[0]
-            download_link = file_data["download_url"]
-            video_title = file_data["file_name"]
-            file_size = int(file_data["size_bytes"])
-            thumb_url = file_data["thumbnails"].get("url3", "") if file_data["thumbnails"] else ""
+        # Pick the first file for now (you can expand to all later if needed)
+        file_data = files[0]
+        download_link = file_data["download_url"]
+        video_title = file_data["file_name"]
+        file_size = int(file_data["size_bytes"])
+        thumb_url = file_data["thumbnails"].get("url3", "") if file_data["thumbnails"] else ""
 
-            if file_size == 0:
-                raise Exception("Failed to get file size, download aborted.")
+        if file_size == 0:
+            raise Exception("Failed to get file size, download aborted.")
 
-            for attempt in range(1, max_retries + 1):
-                try:
-                    file_path = await asyncio.create_task(
-                        download(download_link, user_id, video_title, reply_msg, user_mention, file_size)
-                    )
-                    break
-                except Exception as e:
-                    logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
-                    if attempt == max_retries:
-                        raise e
-                    await asyncio.sleep(3)
-            #try:
-                #await update_download_stats(user_id, file_size, video_title)
-            #except Exception as e:
-                #logging.warning(f"Failed to update download stats: {e}")
+        for attempt in range(1, max_retries + 1):
+            try:
+                file_path = await asyncio.create_task(
+                    download(download_link, user_id, video_title, reply_msg, user_mention, file_size)
+                )
+                break
+            except Exception as e:
+                logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
+                if attempt == max_retries:
+                    raise e
+                await asyncio.sleep(3)
 
-            await reply_msg.edit_text(f"✅ Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ..!\n📂 {video_title}")
-            return file_path, thumb_url, video_title, None
+        await reply_msg.edit_text(f"✅ Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ..!\n📂 {video_title}")
 
-        else:
-            # Multiple files - download first file automatically
-            file_data = files[0]
-            download_link = file_data["download_url"]
-            video_title = file_data["file_name"]
-            file_size = int(file_data["size_bytes"])
-            thumb_url = file_data["thumbnails"].get("url3", "") if file_data["thumbnails"] else ""
-
-            if file_size == 0:
-                raise Exception("Failed to get file size, download aborted.")
-
-            for attempt in range(1, max_retries + 1):
-                try:
-                    file_path = await asyncio.create_task(
-                        download(download_link, user_id, video_title, reply_msg, user_mention, file_size)
-                    )
-                    break
-                except Exception as e:
-                    logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
-                    if attempt == max_retries:
-                        raise e
-                    await asyncio.sleep(3)
-            #try:
-                #await update_download_stats(user_id, file_size, video_title)
-            #except Exception as e:
-                #logging.warning(f"Failed to update download stats: {e}")
-
-            await reply_msg.edit_text(f"✅ Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ..!\n📂 {video_title}")
-            return file_path, thumb_url, video_title, None
+        # Return a list of 3-tuples, even if just one file
+        return [(file_path, thumb_url, video_title)]
 
     except Exception as e:
         logging.error(f"Error in download_video: {e}", exc_info=True)
         await reply_msg.edit_text(f"❌ Error: {str(e)}")
-        return None, None, None, None
+        return []
 
 #------###$$
 
