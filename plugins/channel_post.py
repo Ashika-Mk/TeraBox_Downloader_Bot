@@ -143,10 +143,19 @@ async def handle_message(client: Client, message: Message):
 
     files_data = []
 
+          
     if is_premium:
         premium_msg = await message.reply("✅ Processing as a premium user...")
         try:
-            files_data = await download_video(message_text, reply_msg, user_mention, user_id)
+            files_data = await download_video(
+                message_text,  # URL
+                reply_msg,
+                user_mention,
+                user_id,
+                client,
+                db_channel_id,
+                message
+            )
             if not files_data:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
         except Exception as e:
