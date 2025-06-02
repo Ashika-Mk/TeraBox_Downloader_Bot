@@ -74,32 +74,257 @@ def generate_thumbnail(video_path: str, output_path: str, time_position: int = 1
         return None
 
 
-#rohit95 old token
+import requests
+import math
+from pathlib import Path
+import re
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
-TERABOX_API_URL = "https://terabox.web.id"
-TERABOX_API_TOKEN = "85ebfdd8-77d5-4725-a3b6-3a03ba188a5c_7328629001"
-THUMBNAIL = "https://envs.sh/S-T.jpg"
+TERABOX_COOKIES = "browserid=cLNycJqGL6eOGpkhz9CtW3sG7CS89UeNe0Ycq2Ainq-UD9VlRDZiyB8tBaI=; lang=en; TSID=7neW7n6LXenkJEV0l9xwoXc87YgeObNR; __bid_n=1971ea13b40eefcf4f4207; _ga=GA1.1.113339747.1748565576; ndus=YvZErXkpeHui6z7tOvOuDPvaDsYiQOZosuA0eNJq; csrfToken=7rbF54M2IP5Hy8dh_ZCHGIFY"
 
 
 downloads_manager = {}
 
+# Replace the TeraBox scraping functions with API calls to your VPS
+SCRAPER_API_URL = "http://128.199.108.75:5000/terabox/fetch"
 
-async def fetch_json(url: str) -> dict:
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            return await resp.json()
+def truncate_filename(filename, max_length=40):
+    """
+    Replace 'getnewlink' patterns with '@NyxKingS', otherwise keep filename unchanged.
+    """
+    import re
 
-async def download(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
-    sanitized_filename = filename.replace("/", "_").replace("\\", "_")
+    # Only replace if filename contains getnewlink patterns
+    if any(pattern in filename.lower() for pattern in ['getnewlink', 'getnewlink.com', '@getnewlink']):
+        # Replace getnewlink patterns with @NyxKingS
+        filename = re.sub(r'(@)?getnewlink(\.com)?', '@NYXKINGS ', filename, flags=re.IGNORECASE)
+
+    # Return the filename as-is (either modified or original)
+    return filename
+
+async def fetch_json_from_api(url: str) -> dict:
+    """Fetch data from your VPS scraper API"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{SCRAPER_API_URL}?url={url}",
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
+                if resp.status != 200:
+                    raise Exception(f"API returned status {resp.status}")
+                return await resp.json()
+    except Exception as e:
+        logging.error(f"Error fetching from scraper API: {e}")
+        raise
+
+async def process_shared_content(share_url):
+    """Process TeraBox shared content using your VPS API"""
+    try:
+        logging.info(f"Fetching data from scraper API for: {share_url}")
+
+        api_response = await fetch_json_from_api(share_url)
+
+        if api_response.get("status") != "success":
+            raise Exception(f"API error: {api_response.get('message', 'Unknown error')}")
+
+        files = api_response.get("files", [])
+
+        if not files:
+            raise Exception("No files found in API response")
+
+        # Convert API response format to match expected format
+        processed_content = []
+        for file_data in files:
+            raw_filename = file_data.get("file_name", "unnamed_file")
+            cleaned_filename = truncate_filename(raw_filename)
+
+            processed_content.append({
+                "file_name": cleaned_filename,
+                "path": file_data.get("path"),
+                "size": file_data.get("size"),
+                "size_bytes": file_data.get("size_bytes"),
+                "download_url": file_data.get("download_url"),
+                "modify_time": file_data.get("modify_time"),
+                "thumbnails": file_data.get("thumbnails", {})
+            })
+
+        logging.info(f"Successfully fetched {len(processed_content)} files from API")
+        return processed_content
+
+    except Exception as e:
+        logging.error(f"Failed to process shared content via API for {share_url}: {e}")
+        return []
+
+
+
+async def download_parallel(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int, num_chunks: int = 4) -> str:
+    """Download file using parallel chunks for maximum speed"""
+    sanitized_filename = filename.replace("/", "_").replace("\\", "_").replace(":", "_").replace("?", "_").replace("*", "_").replace("|", "_").replace("<", "_").replace(">", "_").replace('"', "_")
     file_path = os.path.join(os.getcwd(), sanitized_filename)
 
-    download_key = f"{user_id}-{sanitized_filename}"  # Unique key per file
+    download_key = f"{user_id}-{sanitized_filename}"
+    downloads_manager[download_key] = {"downloaded": 0, "chunks": {}}
+
+    # Check if server supports range requests
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Referer': 'https://www.terabox.com/'
+    }
+
+    # Test for range support
+    async with aiohttp.ClientSession() as session:
+        async with session.head(url, headers=headers) as resp:
+            if resp.status != 200:
+                # Fallback to single-threaded download
+                return await download_single(url, user_id, filename, reply_msg, user_mention, file_size)
+
+            accept_ranges = resp.headers.get('Accept-Ranges', '').lower()
+            content_length = int(resp.headers.get('Content-Length', 0)) or file_size
+
+            if accept_ranges != 'bytes' or content_length < 50 * 1024 * 1024:  # Less than 50MB
+                # Fallback to single-threaded for small files or no range support
+                return await download_single(url, user_id, filename, reply_msg, user_mention, file_size)
+
+    # Calculate chunk sizes for parallel download
+    chunk_size = content_length // num_chunks
+    ranges = []
+
+    for i in range(num_chunks):
+        start = i * chunk_size
+        end = start + chunk_size - 1 if i < num_chunks - 1 else content_length - 1
+        ranges.append((start, end))
+
+    logging.info(f"Starting parallel download with {num_chunks} chunks: {filename}")
+
+    start_time = datetime.now()
+    last_update_time = time.time()
+
+    async def download_chunk(chunk_id: int, start: int, end: int):
+        """Download a specific chunk of the file"""
+        chunk_headers = headers.copy()
+        chunk_headers['Range'] = f'bytes={start}-{end}'
+
+        connector = aiohttp.TCPConnector(
+            limit=200,
+            limit_per_host=50,
+            ttl_dns_cache=1800,
+            use_dns_cache=True,
+            keepalive_timeout=600,
+            ssl=False
+        )
+
+        timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=600)
+
+        for attempt in range(3):
+            try:
+                async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+                    async with session.get(url, headers=chunk_headers) as resp:
+                        if resp.status not in [200, 206]:
+                            raise Exception(f"Chunk {chunk_id} HTTP {resp.status}")
+
+                        chunk_data = bytearray()
+                        async for data in resp.content.iter_chunked(1024 * 1024):  # 1MB read chunks
+                            chunk_data.extend(data)
+                            downloads_manager[download_key]['chunks'][chunk_id] = len(chunk_data)
+
+                        return chunk_id, bytes(chunk_data)
+
+            except Exception as e:
+                logging.warning(f"Chunk {chunk_id} attempt {attempt + 1} failed: {e}")
+                if attempt < 2:
+                    await asyncio.sleep(1)
+                else:
+                    raise e
+
+    async def progress_updater():
+        """Update progress while chunks are downloading"""
+        nonlocal last_update_time
+        while download_key in downloads_manager:
+            try:
+                if time.time() - last_update_time > 1:  # Update every second
+                    total_downloaded = sum(downloads_manager[download_key]['chunks'].values())
+                    percentage = (total_downloaded / content_length) * 100
+                    elapsed = (datetime.now() - start_time).total_seconds()
+                    speed = total_downloaded / elapsed if elapsed > 0 else 0
+                    eta = (content_length - total_downloaded) / speed if speed > 0 else 0
+
+                    progress_text = format_progress_bar(
+                        filename=filename, percentage=percentage, done=total_downloaded,
+                        total_size=content_length, status="Dᴏᴡɴʟᴏᴀᴅɪɴɢ.. (Parallel)", eta=eta,
+                        speed=speed, elapsed=elapsed, user_mention=user_mention,
+                        user_id=user_id, aria2p_gid=""
+                    )
+                    try:
+                        await reply_msg.edit_text(progress_text)
+                        last_update_time = time.time()
+                    except:
+                        pass
+
+                await asyncio.sleep(0.5)
+            except:
+                break
+
+    try:
+        # Start progress updater
+        progress_task = asyncio.create_task(progress_updater())
+
+        # Download all chunks in parallel
+        chunk_tasks = [
+            download_chunk(i, start, end) 
+            for i, (start, end) in enumerate(ranges)
+        ]
+
+        chunk_results = await asyncio.gather(*chunk_tasks)
+
+        # Stop progress updater
+        progress_task.cancel()
+
+        # Sort chunks by ID and write to file
+        chunk_results.sort(key=lambda x: x[0])
+
+        async with aiofiles.open(file_path, 'wb') as f:
+            for chunk_id, chunk_data in chunk_results:
+                await f.write(chunk_data)
+
+        downloads_manager.pop(download_key, None)
+        logging.info(f"Parallel download completed: {filename}")
+        return file_path
+
+    except Exception as e:
+        logging.error(f"Parallel download failed: {e}")
+        # Cleanup partial file
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        downloads_manager.pop(download_key, None)
+        raise e
+
+async def download_single(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
+    """Fallback single-threaded download"""
+    sanitized_filename = filename.replace("/", "_").replace("\\", "_").replace(":", "_").replace("?", "_").replace("*", "_").replace("|", "_").replace("<", "_").replace(">", "_").replace('"', "_")
+    file_path = os.path.join(os.getcwd(), sanitized_filename)
+
+    download_key = f"{user_id}-{sanitized_filename}"
     downloads_manager[download_key] = {"downloaded": 0}
 
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=900)) as session:
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        'Referer': 'https://www.terabox.com/'
+    }
+
+    connector = aiohttp.TCPConnector(
+        limit=100, limit_per_host=20, ttl_dns_cache=1800,
+        use_dns_cache=True, keepalive_timeout=600, ssl=False
+    )
+
+    timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=600)
+
+    async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=timeout) as session:
         async with session.get(url) as resp:
-            if resp.status != 200:
-                raise Exception(f"Failed to fetch video: HTTP {resp.status}")
+            if resp.status not in [200, 206]:
+                raise Exception(f"HTTP {resp.status}")
 
             total_size = int(resp.headers.get("Content-Length", 0)) or file_size
             start_time = datetime.now()
@@ -107,84 +332,52 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
 
             async def progress(current, total):
                 nonlocal last_update_time
-                percentage = (current / total) * 100 if total else 0
-                elapsed_time_seconds = (datetime.now() - start_time).total_seconds()
-                speed = current / elapsed_time_seconds if elapsed_time_seconds > 0 else 0
-                eta = (total - current) / speed if speed > 0 else 0
+                if time.time() - last_update_time > 1:
+                    percentage = (current / total) * 100 if total else 0
+                    elapsed = (datetime.now() - start_time).total_seconds()
+                    speed = current / elapsed if elapsed > 0 else 0
+                    eta = (total - current) / speed if speed > 0 else 0
 
-                if time.time() - last_update_time > 2:
                     progress_text = format_progress_bar(
-                        filename=filename,
-                        percentage=percentage,
-                        done=current,
-                        total_size=total,
-                        status="Downloading",
-                        eta=eta,
-                        speed=speed,
-                        elapsed=elapsed_time_seconds,
-                        user_mention=user_mention,
-                        user_id=user_id,
-                        aria2p_gid=""
+                        filename=filename, percentage=percentage, done=current,
+                        total_size=total, status="Downloading", eta=eta,
+                        speed=speed, elapsed=elapsed, user_mention=user_mention,
+                        user_id=user_id, aria2p_gid=""
                     )
                     try:
-                        await reply_msg.edit_text(progress_text)
+                        if reply_msg:
+                            await reply_msg.edit_text(progress_text)
                         last_update_time = time.time()
-                    except Exception as e:
-                        logging.warning(f"Error updating progress message: {e}")
+                    except:
+                        pass
 
             async with aiofiles.open(file_path, 'wb') as f:
-                while True:
-                    chunk = await resp.content.read(10 * 1024 * 1024)  # 10MB chunks
+                chunk_size = 50 * 1024 * 1024  # 50MB chunks
+
+                async for chunk in resp.content.iter_chunked(chunk_size):
                     if not chunk:
-                        break
-                    if downloads_manager[download_key]["downloaded"] + len(chunk) > total_size:
-                        logging.warning(f"Download exceeded expected size for {filename}. Stopping...")
                         break
                     await f.write(chunk)
                     downloads_manager[download_key]['downloaded'] += len(chunk)
                     await progress(downloads_manager[download_key]['downloaded'], total_size)
 
-    downloads_manager.pop(download_key, None)  # Cleanup after completion
+    downloads_manager.pop(download_key, None)
     return file_path
 
-
-async def download_video(url, reply_msg, user_mention, user_id, client, db_channel_id, message, max_retries=3):
+# Update the main download function to use parallel downloading
+async def download(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
+    """Main download function with parallel support"""
     try:
-        logging.info(f"Fetching video info: {url}")
-
-        api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token={TERABOX_API_TOKEN}")
-
-        if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
-            raise Exception("Invalid API response format.")
-
-        data = api_response[0]
-        download_link = data["direct_link"]  # Use direct link instead of cookie-authenticated one
-        video_title = data["filename"]
-        file_size = int(data.get("size", 0))
-        thumb_url = data["thumbnail"]
-
-        if file_size == 0:
-            raise Exception("Failed to get file size, download aborted.")
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                file_path = await asyncio.create_task(
-                    download(download_link, user_id, video_title, reply_msg, user_mention, file_size)
-                )
-                break
-            except Exception as e:
-                logging.warning(f"Download failed (Attempt {attempt}/{max_retries}): {e}")
-                if attempt == max_retries:
-                    raise e
-                await asyncio.sleep(3)
-
-        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-
-        return file_path, thumb_url, video_title, None
-
+        # Try parallel download first for large files
+        if file_size > 100 * 1024 * 1024:  # Files larger than 100MB
+            return await download_parallel(url, user_id, filename, reply_msg, user_mention, file_size, num_chunks=8)
+        else:
+            return await download_single(url, user_id, filename, reply_msg, user_mention, file_size)
     except Exception as e:
-        logging.error(f"Error: {e}", exc_info=True)
-        return None, None, None, None
+        logging.warning(f"Parallel download failed, falling back to single-threaded: {e}")
+        return await download_single(url, user_id, filename, reply_msg, user_mention, file_size)
+
+
 
 uploads_manager = {}
 
