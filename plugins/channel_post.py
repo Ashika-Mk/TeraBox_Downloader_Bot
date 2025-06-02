@@ -172,7 +172,16 @@ async def handle_message(client: Client, message: Message):
     elif verify_status['is_verified']:
         verified_msg = await message.reply("✅ Processing as a verified user...")
         try:
-            files_data = await download_video(message_text, reply_msg, user_mention, user_id)
+            files_data = await download_video(
+                message_text,  # URL
+                reply_msg,
+                user_mention,
+                user_id,
+                client,
+                db_channel_id,
+                message
+            )
+
             if not files_data:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
         except Exception as e:
@@ -195,7 +204,15 @@ async def handle_message(client: Client, message: Message):
                 f"✅ Processing as a free user...\n🔄 Remaining attempts: {remaining_attempts}"
             )
             try:
-                files_data = await download_video(message_text, reply_msg, user_mention, user_id)
+                files_data = await download_video(
+                message_text,  # URL
+                reply_msg,
+                user_mention,
+                user_id,
+                client,
+                db_channel_id,
+                message
+            )
                 if not files_data:
                     return await reply_msg.edit_text("Failed to download. The link may be broken.")
             except Exception as e:
