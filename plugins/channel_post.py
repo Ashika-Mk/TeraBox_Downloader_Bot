@@ -83,6 +83,8 @@ async def handle_message(client: Client, message: Message):
         except Exception as e:
             logging.error(f"Failed to add user {user_id} to the database: {e}")
 
+
+
     # ✅ Check Force Subscription
     if not await is_subscribed(client, message):
         # Don't remove This Line From Here. Tg: @rohit_1888 | @Javpostr
@@ -125,123 +127,85 @@ async def handle_message(client: Client, message: Message):
             quote=True
         )
 
-    # **Check if the message is a valid TeraBox link**
+    # Check valid TeraBox link
     valid_domains = [
         'terabox.com', 'nephobox.com', '4funbox.com', 'mirrobox.com',
         'momerybox.com', 'teraboxapp.com', '1024tera.com',
         'terabox.app', 'gibibox.com', 'goaibox.com', 'terasharelink.com',
-        'teraboxlink.com', 'terafileshare.com', 'teraboxshare.com', 'terabox.club'
+        'teraboxlink.com', 'terafileshare.com'
     ]
 
     if not any(domain in message_text for domain in valid_domains):
         return await message.reply("⚠️ Please send a valid TeraBox link.")
 
-    # If a valid link is received, process it
+    # Process the link
     reply_msg = await message.reply_text("🔄 Processing your link, please wait...")
 
-    # **Premium Users → Immediate Processing**
+    files_data = []
+
     if is_premium:
         premium_msg = await message.reply("✅ Processing as a premium user...")
         try:
-            file_path, thumbnail_path, video_title, video_duration = await download_video(
-                message_text,  # URL
-                reply_msg,
-                user_mention,
-                user_id,
-                client,
-                db_channel_id,
-                message
-            )
-
-            if file_path is None:
+            files_data = await download_video(message_text, reply_msg, user_mention, user_id)
+            if not files_data:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
-
-            asyncio.create_task(upload_videos(client, files_data, reply_msg, db_channel_id, user_mention, user_id, message
-            ))
-
-            await premium_msg.delete()
-
         except Exception as e:
-            logging.error(f"Download or upload error: {e}")
-            return await reply_msg.edit_text("❌ API returned a broken link or failed to upload.")
+            logging.error(f"Download error (premium): {e}")
+            return await reply_msg.edit_text("❌ API returned a broken link.")
 
-    # **Verified Free Users (Still Valid)**
+        try:
+            await upload_videos(client, files_data, reply_msg, db_channel_id, user_mention, user_id, message)
+            await premium_msg.delete()
+        except Exception as e:
+            logging.error(f"Upload error (premium): {e}")
+            return await reply_msg.edit_text("❌ Failed to upload files.")
+
     elif verify_status['is_verified']:
         verified_msg = await message.reply("✅ Processing as a verified user...")
         try:
-            file_path, thumbnail_path, video_title, video_duration = await download_video(
-                message_text,  # URL
-                reply_msg,
-                user_mention,
-                user_id,
-                client,
-                db_channel_id,
-                message
-            )
-
-            if file_path is None:
+            files_data = await download_video(message_text, reply_msg, user_mention, user_id)
+            if not files_data:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
-            asyncio.create_task(upload_videos(client, files_data, reply_msg, db_channel_id, user_mention, user_id, message
-            ))
-
-            await verified_msg.delete()
-
         except Exception as e:
-            logging.error(f"Download or upload error: {e}")
-            return await reply_msg.edit_text("❌ API returned a broken link or failed to upload.")
+            logging.error(f"Download error (verified): {e}")
+            return await reply_msg.edit_text("❌ API returned a broken link.")
 
-    # **Free Usage Check**
+        try:
+            await upload_videos(client, files_data, reply_msg, db_channel_id, user_mention, user_id, message)
+            await verified_msg.delete()
+        except Exception as e:
+            logging.error(f"Upload error (verified): {e}")
+            return await reply_msg.edit_text("❌ Failed to upload files.")
+
     elif free_enabled:
         if free_count < free_limit:
-            await db.update_free_usage(user_id)  # Increment usage count
-            remaining_attempts = free_limit - free_count - 1  # Update remaining count
+            await db.update_free_usage(user_id)
+            remaining_attempts = free_limit - free_count - 1
 
             free_msg = await message.reply(
                 f"✅ Processing as a free user...\n🔄 Remaining attempts: {remaining_attempts}"
             )
+            try:
+                files_data = await download_video(message_text, reply_msg, user_mention, user_id)
+                if not files_data:
+                    return await reply_msg.edit_text("Failed to download. The link may be broken.")
+            except Exception as e:
+                logging.error(f"Download error (free): {e}")
+                return await reply_msg.edit_text("❌ API returned a broken link.")
 
             try:
-                file_path, thumbnail_path, video_title, video_duration = await download_video(
-                    message_text,  # URL
-                    reply_msg,
-                    user_mention,
-                    user_id,
-                    client,
-                    db_channel_id,
-                    message
-                )
-
-                if file_path is None:
-                    return await reply_msg.edit_text("Failed to download. The link may be broken.")
-
-                asyncio.create_task(upload_videos(
-                    client=client,
-                    file_path=file_path,
-                    video_title=video_title,
-                    reply_msg=reply_msg,
-                    db_channel_id=db_channel_id,
-                    user_mention=user_mention,
-                    user_id=user_id,
-                    message=message
-                ))
-
+                await upload_videos(client, files_data, reply_msg, db_channel_id, user_mention, user_id, message)
                 await free_msg.delete()
-
             except Exception as e:
-                logging.error(f"Download or upload error: {e}")
-                return await reply_msg.edit_text("❌ API returned a broken link or failed to upload.")
+                logging.error(f"Upload error (free): {e}")
+                return await reply_msg.edit_text("❌ Failed to upload files.")
 
-
-
-        # **Free limit reached cases**
         else:
-            # **Check if shortener API & URL are available**
             if shortener_api and shortener_url:
-                # **If user is not verified or their verification expired**
                 if not verify_status['is_verified'] or (is_verified_recently and not verify_status['is_verified']):
                     token = ''.join(random.choices(rohit.ascii_letters + rohit.digits, k=10))
                     long_url = f"https://telegram.dog/{client.username}?start=verify_{token}"
-                    short_link = await get_shortlink(long_url)  # Use shortener API
+                    short_link = await get_shortlink(long_url)
 
                     await db.update_verify_status(user_id, verify_token=token, verified_time=current_time, link="")
 
@@ -260,9 +224,14 @@ async def handle_message(client: Client, message: Message):
                         reply_markup=InlineKeyboardMarkup(btn),
                         protect_content=False
                     )
+            else:
+                return await message.reply(
+                    "⚠️ Free limit exceeded. Please purchase premium.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
+                )
 
-            # **If no shortener API is available → Only show BUY PREMIUM**
-            return await message.reply(
-                "⚠️ Free limit exceeded. Please purchase premium.",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
-            )
+    else:
+        return await message.reply(
+            "⚠️ Free downloads are disabled. Please purchase premium.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')]])
+        )
