@@ -526,10 +526,10 @@ async def download_video(url, reply_msg, user_mention, user_id, client, db_chann
                     if attempt == max_retries:
                         raise e
                     await asyncio.sleep(3)
-            try:
-                await update_download_stats(user_id, file_size, video_title)
-            except Exception as e:
-                logging.warning(f"Failed to update download stats: {e}")
+            #try:
+                #await update_download_stats(user_id, file_size, video_title)
+            #except Exception as e:
+                #logging.warning(f"Failed to update download stats: {e}")
 
             await reply_msg.edit_text(f"✅ Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ..!\n📂 {video_title}")
             return file_path, thumb_url, video_title, None
@@ -556,10 +556,10 @@ async def download_video(url, reply_msg, user_mention, user_id, client, db_chann
                     if attempt == max_retries:
                         raise e
                     await asyncio.sleep(3)
-            try:
-                await update_download_stats(user_id, file_size, video_title)
-            except Exception as e:
-                logging.warning(f"Failed to update download stats: {e}")
+            #try:
+                #await update_download_stats(user_id, file_size, video_title)
+            #except Exception as e:
+                #logging.warning(f"Failed to update download stats: {e}")
 
             await reply_msg.edit_text(f"✅ Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ..!\n📂 {video_title}")
             return file_path, thumb_url, video_title, None
