@@ -98,7 +98,7 @@ def truncate_filename(filename, max_length=40):
     # Only replace if filename contains getnewlink patterns
     if any(pattern in filename.lower() for pattern in ['getnewlink', 'getnewlink.com', '@getnewlink']):
         # Replace getnewlink patterns with @NyxKingS
-        filename = re.sub(r'(@)?getnewlink(\.com)?', '@NYXKINGS ', filename, flags=re.IGNORECASE)
+        filename = re.sub(r'(@)?getnewlink(\.com)?', '@Codeflix_Bots ', filename, flags=re.IGNORECASE)
 
     # Return the filename as-is (either modified or original)
     return filename
