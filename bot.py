@@ -83,7 +83,8 @@ class Bot(Client):
         try:
             db_channel = await self.get_chat(CHANNEL_ID)
             self.db_channel = db_channel
-        except Exception as e:
+        except Exception as 
+e:
             self.LOGGER(__name__).warning(e)
             self.LOGGER(__name__).warning(
                 f"Make Sure bot is Admin in DB Channel, and Double check the CHANNEL_ID Value, Current Value {CHANNEL_ID}"
