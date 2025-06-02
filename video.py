@@ -365,7 +365,7 @@ async def download_single(url: str, user_id: int, filename: str, reply_msg, user
     return file_path
 
 # Update the main download function to use parallel downloading
-async def download(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
+async def download_video(url: str, user_id: int, filename: str, reply_msg, user_mention, file_size: int) -> str:
     """Main download function with parallel support"""
     try:
         # Try parallel download first for large files
