@@ -173,7 +173,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
         # Extract details from response
         data = api_response[0]
-        download_link = data["link"] + f"&random={random.randint(1, 10)}"
+        download_link = data["direct_link"] + f"&random={random.randint(1, 10)}"
         video_title = data["filename"]
         file_size = int(data.get("size", 0))  # Convert to int to ensure proper type
         thumb_url = data["thumbnail"] # Use default if missing
