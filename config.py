@@ -42,7 +42,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "7328629001"))
 
 #Port
 
-PORT = os.environ.get("PORT", "3430")
+PORT = os.environ.get("PORT", "3431")
 
 
 
@@ -67,7 +67,7 @@ TUT_VID = os.environ.get("TUT_VID", "https://t.me/delight_link/2")
 
 
 
-TG_BOT_WORKERS = int(os.environ.get("TG_BOT_WORKERS", "50"))
+TG_BOT_WORKERS = int(os.environ.get("TG_BOT_WORKERS", "200"))
 
 
 
