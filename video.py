@@ -209,7 +209,15 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
 uploads_manager = {}
 
-async def upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
+async def upload_video(
+    client,
+    files_data: list,  # List of (file_path, thumbnail_path, video_title)
+    reply_msg,
+    db_channel_id,
+    user_mention,
+    user_id,
+    message
+):
     uploads_manager.setdefault(user_id, [])
 
     async def upload_single_file(file_path, thumb_path, video_title):
@@ -220,16 +228,11 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             start_time = datetime.now()
             last_update_time = time.time()
 
-            # Fetch DB settings concurrently
             AUTO_DEL, DEL_TIMER, HIDE_CAPTION, CHNL_BTN, PROTECT_MODE = await asyncio.gather(
                 db.get_auto_delete(), db.get_del_timer(), db.get_hide_caption(),
                 db.get_channel_button(), db.get_protect_content()
             )
             button_name, button_link = await db.get_channel_button_link() if CHNL_BTN else (None, None)
-
-            # Always generate thumbnail before upload
-            thumbnail_path = generate_thumbnail(file_path, f"{file_path}.jpg")
-            duration = get_video_duration(file_path)
 
             # Upload progress callback
             async def progress(current, total):
@@ -264,8 +267,8 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
                 chat_id=db_channel_id,
                 video=file_path,
                 caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
-                thumb=thumbnail_path if os.path.exists(thumbnail_path) else None,
-                duration=duration,
+                thumb=thumb_path if os.path.exists(thumb_path) else None,
+                duration=get_video_duration(file_path),
                 supports_streaming=True,
                 progress=progress,
                 protect_content=PROTECT_MODE
@@ -290,7 +293,6 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             if AUTO_DEL:
                 asyncio.create_task(delete_message(copied_msg, DEL_TIMER))
 
-            # Send sticker
             sticker_msg = await message.reply_sticker("CAACAgIAAxkBAAEZdwRmJhCNfFRnXwR_lVKU1L9F3qzbtAAC4gUAAj-VzApzZV-v3phk4DQE")
             await asyncio.sleep(5)
             await sticker_msg.delete()
@@ -308,14 +310,14 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             try:
                 if os.path.exists(file_path):
                     os.remove(file_path)
-                if thumbnail_path and os.path.exists(thumbnail_path):
-                    os.remove(thumbnail_path)
+                if thumb_path and os.path.exists(thumb_path):
+                    os.remove(thumb_path)
                 await message.delete()
                 await reply_msg.delete()
             except Exception as e:
                 logging.warning(f"Cleanup error: {e}")
 
-    # Prepare all upload tasks
+    # Launch all uploads simultaneously without restriction
     upload_tasks = [
         asyncio.create_task(upload_single_file(file_path, thumb_path, video_title))
         for file_path, thumb_path, video_title in files_data
