@@ -196,9 +196,9 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
         # Send completion message
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-        #return [(file_path, thumb_url, video_title)]
+        return [(file_path, thumb_url, video_title)]
 
-        return file_path, thumb_url, video_title, None  # No duration in response
+        #return file_path, thumb_url, video_title, None  # No duration in response
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
