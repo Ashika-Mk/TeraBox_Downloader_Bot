@@ -107,20 +107,15 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
     sanitized_filename = filename.replace("/", "_").replace("\\", "_")
     file_path = os.path.join(os.getcwd(), sanitized_filename)
 
-    cookies = await fetch_json(f"{TERABOX_API_URL}/gc?token={TERABOX_API_TOKEN}")
-
-    download_key = f"{user_id}-{sanitized_filename}"  # Unique key per file
+    download_key = f"{user_id}-{sanitized_filename}"
     downloads_manager[download_key] = {"downloaded": 0}
 
-    async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=900),
-        cookies=cookies
-    ) as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=900)) as session:
         async with session.get(url) as resp:
             if resp.status != 200:
                 raise Exception(f"Failed to fetch video: HTTP {resp.status}")
 
-            total_size = int(resp.headers.get("Content-Length", 0)) or file_size  # Ensure file size is correct
+            total_size = int(resp.headers.get("Content-Length", 0)) or file_size
             start_time = datetime.now()
             last_update_time = time.time()
 
@@ -163,7 +158,7 @@ async def download(url: str, user_id: int, filename: str, reply_msg, user_mentio
                     downloads_manager[download_key]['downloaded'] += len(chunk)
                     await progress(downloads_manager[download_key]['downloaded'], total_size)
 
-    downloads_manager.pop(download_key, None)  # Cleanup after completion
+    downloads_manager.pop(download_key, None)
     return file_path
 
 async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
@@ -201,9 +196,9 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
         # Send completion message
         await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
-        return [(file_path, thumb_url, video_title)]
+        #return [(file_path, thumb_url, video_title)]
 
-        #return file_path, thumb_url, video_title, None  # No duration in response
+        return file_path, thumb_url, video_title, None  # No duration in response
 
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)
