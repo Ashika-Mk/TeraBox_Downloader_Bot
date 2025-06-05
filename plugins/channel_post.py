@@ -71,6 +71,7 @@ async def update_bot(client, message):
         os.execl(sys.executable, sys.executable, *sys.argv)
 
 @Bot.on_message(filters.private & filters.incoming)
+
 async def handle_message(client: Client, message: Message):
     user_id = message.from_user.id
     user_mention = message.from_user.mention
@@ -143,13 +144,16 @@ async def handle_message(client: Client, message: Message):
     if is_premium:
         premium_msg = await message.reply("✅ Processing as a premium user...")
         try:
-            files_data = await download_video(message_text, reply_msg, user_mention, user_id)
+            file_path, thumbnail_path, video_title, video_duration = await download_video(message_text, reply_msg, user_mention, user_id)
 
-            if not files_data or files_data[0][0] is None:
+            if file_path is None:
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
-            for file_path, thumbnail_path, video_title in files_data:
-                await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id)
+            try:
+                await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
+            except Exception as e:
+                logging.error(f"Upload error: {e}")
+                return await reply_msg.edit_text("❌ Failed to upload the video.")
 
             await premium_msg.delete()
         except Exception as e:
@@ -166,7 +170,7 @@ async def handle_message(client: Client, message: Message):
                 return await reply_msg.edit_text("Failed to download. The link may be broken.")
 
             try:
-                await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id)
+                await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
             except Exception as e:
                 logging.error(f"Upload error: {e}")
                 return await reply_msg.edit_text("❌ Failed to upload the video.")
@@ -199,7 +203,10 @@ async def handle_message(client: Client, message: Message):
                     return await reply_msg.edit_text("❌ API returned a broken link.")
 
                 try:
-                    await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id)
+                    await upload_video(
+                        client, file_path, video_title, reply_msg,
+                        db_channel_id, user_mention, user_id, message
+                    )
                 except Exception as e:
                     logging.error(f"Upload error: {e}")
                     return await reply_msg.edit_text("❌ Failed to upload the video.")
