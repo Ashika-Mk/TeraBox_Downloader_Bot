@@ -151,10 +151,6 @@ async def handle_message(client: Client, message: Message):
             for file_path, thumbnail_path, video_title in files_data:
                 await upload_video(client, file_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message)
 
-            except Exception as e:
-                logging.error(f"Upload error: {e}")
-                return await reply_msg.edit_text("❌ Failed to upload the video.")
-
             await premium_msg.delete()
         except Exception as e:
             logging.error(f"Download error: {e}")
