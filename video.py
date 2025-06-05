@@ -209,7 +209,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
 
 uploads_manager = {}
 
-async def upload_video(client, files_data, reply_msg, db_channel_id, user_mention, user_id, message):
+async def upload_video(client, files_path, video_title, reply_msg, db_channel_id, user_mention, user_id, message):
     uploads_manager.setdefault(user_id, [])
 
     async def upload_single_file(file_path, thumb_path, video_title):
