@@ -75,8 +75,7 @@ class Bot(Client):
         )
         self.LOGGER = LOGGER
 
-    async def s
-tart(self):
+    async def start(self):
         await super().start()
         usr_bot_me = await self.get_me()
         self.uptime = get_indian_time()  # Use IST for uptime tracking
