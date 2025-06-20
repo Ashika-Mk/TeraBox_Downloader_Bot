@@ -75,7 +75,11 @@ async def update_bot(client, message):
 async def handle_message(client: Client, message: Message):
     user_id = message.from_user.id
     user_mention = message.from_user.mention
-    message_text = message.text.strip() if message.text else ""
+    #message_text = message.text.strip() if message.text else ""
+
+    message_text = (
+        message.text or message.caption or ""
+    ).strip()
 
     # Ensure user exists in DB
     if not await db.present_user(user_id):
