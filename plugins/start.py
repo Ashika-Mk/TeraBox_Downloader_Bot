@@ -85,13 +85,13 @@ async def start_command(client: Client, message: Message):
         ],
         [
             InlineKeyboardButton('Uᴘᴅᴀᴛᴇ Cʜᴀɴɴᴇʟ ⚡', url='https://t.me/MKxBoTz'),
-            InlineKeyboardButton('Aʙᴏᴜᴛ 💌', url="about")
+            InlineKeyboardButton('Aʙᴏᴜᴛ 💌', callback_data="about")
         ],
         [
             InlineKeyboardButton('✘ Cʟᴏsᴇ ✘', callback_data="close")
         ]
     ]
-)
+        )
 
         await message.reply_photo(
             photo=START_PIC,
