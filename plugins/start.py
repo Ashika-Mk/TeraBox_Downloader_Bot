@@ -77,14 +77,14 @@ async def start_command(client: Client, message: Message):
         reply_markup = InlineKeyboardMarkup(
     [
         [
-            InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ 💢', url='https://t.me/MK_Support_Group'),
+            InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ 💢', url='https://t.me/MKxSupport_Group'),
             InlineKeyboardButton('Dᴇᴠᴇʟᴏᴘᴇʀ 👨‍💻', url='https://t.me/Monster_Mk_Bot')
         ],
         [
-            InlineKeyboardButton('Bᴜʏ Pʀᴇᴍɪᴜᴍ ⚜️', callback_data='buy_prem')
+            InlineKeyboardButton('⚜️ Bᴜʏ Pʀᴇᴍɪᴜᴍ ⚜️', callback_data='buy_prem')
         ],
         [
-            InlineKeyboardButton('Uᴘᴅᴀᴛᴇ Cʜᴀɴɴᴇʟ ⚡', url='https://t.me/CodeFlix_Bots'),
+            InlineKeyboardButton('Uᴘᴅᴀᴛᴇ Cʜᴀɴɴᴇʟ ⚡', url='https://t.me/MKxBoTz'),
             InlineKeyboardButton('Mᴋ x Cʟᴏᴜᴅ 💥', url='https://t.me/MKXCLOUD')
         ],
         [
