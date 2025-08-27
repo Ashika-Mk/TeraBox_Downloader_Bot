@@ -75,15 +75,23 @@ async def start_command(client: Client, message: Message):
 
     else:
         reply_markup = InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ 💢', url=f'https://t.me/MK_Support_Group'),
-                 InlineKeyboardButton('Dᴇᴠᴇʟᴏᴘᴇʀ 👨‍💻', callback_data=f'https://t.me/Monster_Mk_Bot'),
-                [InlineKeyboardButton('Bᴜʏ Pʀᴇᴍɪᴜᴍ ⚜️', callback_data='buy_prem')],
-                [InlineKeyboardButton('Uᴘᴅᴀᴛᴇ Cʜᴀɴɴᴇʟ ⚡', url='https://t.me/CodeFlix_Bots'),
-                 InlineKeyboardButton('Mᴋ x Cʟᴏᴜᴅ 💥', url=f'https://t.me/MKXCLOUD')],
-                [InlineKeyboardButton('✘ Cʟᴏsᴇ ✘', url="close")]
-            ]
-        )
+    [
+        [
+            InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ 💢', url='https://t.me/MK_Support_Group'),
+            InlineKeyboardButton('Dᴇᴠᴇʟᴏᴘᴇʀ 👨‍💻', url='https://t.me/Monster_Mk_Bot')
+        ],
+        [
+            InlineKeyboardButton('Bᴜʏ Pʀᴇᴍɪᴜᴍ ⚜️', callback_data='buy_prem')
+        ],
+        [
+            InlineKeyboardButton('Uᴘᴅᴀᴛᴇ Cʜᴀɴɴᴇʟ ⚡', url='https://t.me/CodeFlix_Bots'),
+            InlineKeyboardButton('Mᴋ x Cʟᴏᴜᴅ 💥', url='https://t.me/MKXCLOUD')
+        ],
+        [
+            InlineKeyboardButton('✘ Cʟᴏsᴇ ✘', callback_data="close")
+        ]
+    ]
+)
 
         await message.reply_photo(
             photo=START_PIC,
