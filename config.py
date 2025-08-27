@@ -36,7 +36,7 @@ CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1002170811388"))
 
 #OWNER ID
 
-OWNER_ID = int(os.environ.get("OWNER_ID", "7328629001"))
+OWNER_ID = int(os.environ.get("OWNER_ID", "8060684565"))
 
 
 
@@ -46,7 +46,7 @@ PORT = os.environ.get("PORT", "3435")
 
 
 
-DB_URI = os.environ.get("DATABASE_URL", "mongodb+srv://obito:umaid2008@cluster0.engyc.mongodb.net/?retryWrites=true&w=majority")
+DB_URI = os.environ.get("DATABASE_URL", "mongodb+srv://mdhanush8377:9cQl4L7iYAcXxggI@cluster0.wvfwtg9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 
 
 DB_NAME = os.environ.get("DATABASE_NAME", "test")
@@ -57,9 +57,9 @@ DB_NAME = os.environ.get("DATABASE_NAME", "test")
 
 
 
-IS_VERIFY = os.environ.get("IS_VERIFY", "True")
+IS_VERIFY = os.environ.get("IS_VERIFY", "False")
 
-TUT_VID = os.environ.get("TUT_VID", "https://t.me/delight_link/2")
+TUT_VID = os.environ.get("TUT_VID", "")
 
 
 
@@ -93,7 +93,7 @@ QR_PIC = os.environ.get("QR_PIC", "https://envs.sh/B7w.png")
 
 #set your Custom Caption here, Keep None for Disable Custom Caption
 
-CUSTOM_CAPTION = os.environ.get("CUSTOM_CAPTION", "<b>ʙʏ @Javpostr</b>")
+CUSTOM_CAPTION = os.environ.get("CUSTOM_CAPTION", "<b>Bʏ : @MKxBoTz</b>")
 
 
 
@@ -125,7 +125,7 @@ PREMIUM_BUTTON2 = reply_markup=InlineKeyboardMarkup(
 
 
 
-OWNER_TAG = os.environ.get("OWNER_TAG", "rohit_1888")
+OWNER_TAG = os.environ.get("OWNER_TAG", "Monster_Mk_Bot")
 
 
 
@@ -143,7 +143,7 @@ UPI_IMAGE_URL = os.environ.get("UPI_IMAGE_URL", "https://t.me/paymentbot6/2")
 
 #SCREENSHOT URL of ADMIN for verification of payments
 
-SCREENSHOT_URL = os.environ.get("SCREENSHOT_URL", f"t.me/rohit_1888")
+SCREENSHOT_URL = os.environ.get("SCREENSHOT_URL", "")
 
 
 
@@ -250,4 +250,5 @@ logging.getLogger("pyrogram").setLevel(logging.WARNING)
 def LOGGER(name: str) -> logging.Logger:
 
     return logging.getLogger(name)
+
 
