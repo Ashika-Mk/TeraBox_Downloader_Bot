@@ -57,7 +57,7 @@ DB_NAME = os.environ.get("DATABASE_NAME", "test")
 
 
 
-IS_VERIFY = os.environ.get("IS_VERIFY", "False")
+IS_VERIFY = os.environ.get("IS_VERIFY", "True")
 
 TUT_VID = os.environ.get("TUT_VID", "")
 
@@ -250,6 +250,7 @@ logging.getLogger("pyrogram").setLevel(logging.WARNING)
 def LOGGER(name: str) -> logging.Logger:
 
     return logging.getLogger(name)
+
 
 
 
