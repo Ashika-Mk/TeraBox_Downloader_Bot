@@ -85,7 +85,7 @@ async def start_command(client: Client, message: Message):
         ],
         [
             InlineKeyboardButton('Uᴘᴅᴀᴛᴇ Cʜᴀɴɴᴇʟ ⚡', url='https://t.me/MKxBoTz'),
-            InlineKeyboardButton('Mᴋ x Cʟᴏᴜᴅ 💥', url='https://t.me/MKXCLOUD')
+            InlineKeyboardButton('Aʙᴏᴜᴛ 💌', url="about")
         ],
         [
             InlineKeyboardButton('✘ Cʟᴏsᴇ ✘', callback_data="close")
