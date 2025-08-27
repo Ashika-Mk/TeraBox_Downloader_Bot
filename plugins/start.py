@@ -76,12 +76,12 @@ async def start_command(client: Client, message: Message):
     else:
         reply_markup = InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("😊 About Me", callback_data="about"),
-                 InlineKeyboardButton("🔒 Close", callback_data="close")],
-                [InlineKeyboardButton('BUY PREMIUM', callback_data='buy_prem')],
-                [InlineKeyboardButton('⛩️ Channel', url='https://t.me/CodeFlix_Bots'),
-                 InlineKeyboardButton('⚡️ Support', url='https://t.me/CodeflixSupport')],
-                [InlineKeyboardButton('🌐 Developer', url='https://t.me/rohit_1888')]
+                [InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ 💢', url=f'https://t.me/MK_Support_Group'),
+                 InlineKeyboardButton('Dᴇᴠᴇʟᴏᴘᴇʀ 👨‍💻', callback_data=f'https://t.me/Monster_Mk_Bot'),
+                [InlineKeyboardButton('Bᴜʏ Pʀᴇᴍɪᴜᴍ ⚜️', callback_data='buy_prem')],
+                [InlineKeyboardButton('Uᴘᴅᴀᴛᴇ Cʜᴀɴɴᴇʟ ⚡', url='https://t.me/CodeFlix_Bots'),
+                 InlineKeyboardButton('Mᴋ x Cʟᴏᴜᴅ 💥', url=f'https://t.me/MKXCLOUD')],
+                [InlineKeyboardButton('✘ Cʟᴏsᴇ ✘', url="close")]
             ]
         )
 
