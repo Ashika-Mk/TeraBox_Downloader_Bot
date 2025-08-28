@@ -30,7 +30,7 @@ async def web_server():
 
 import pyrogram.utils
 
-pyrogram.utils.MIN_CHANNEL_ID = -1009147483647
+pyrogram.utils.MIN_CHANNEL_ID = -1002861812069
 
 
 # Rename Flask app instance to avoid conflict
@@ -88,7 +88,7 @@ class Bot(Client):
             self.LOGGER(__name__).warning(
                 f"Make Sure bot is Admin in DB Channel, and Double check the CHANNEL_ID Value, Current Value {CHANNEL_ID}"
             )
-            self.LOGGER(__name__).info("\nBot Stopped. @rohit_1888 for support")
+            self.LOGGER(__name__).info("\nBᴏᴛ Sᴛᴏᴘᴘᴇᴅ ➤ @Monster_Mk_Bot Fᴏʀ Sᴜᴘᴘᴏʀᴛ")
             sys.exit()
 
         self.set_parse_mode(ParseMode.HTML)
@@ -101,13 +101,13 @@ class Bot(Client):
         await web.TCPSite(app, "0.0.0.0", PORT).start()
 
         try:
-            await self.send_message(OWNER_ID, text=f"<b><blockquote>🤖 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ by @rohit_1888</blockquote></b>")
+            await self.send_message(OWNER_ID, text=f"<b><blockquote>👨‍💻 Bᴏᴛ Rᴇsᴛᴀʀᴛᴇᴅ Bʏ : @Monster_Mk_Bot</blockquote></b>")
         except:
             pass
 
     async def stop(self, *args):
         await super().stop()
-        self.LOGGER(__name__).info("Bot stopped.")
+        self.LOGGER(__name__).info("Bᴏᴛ Sᴛᴏᴘᴘᴇᴅ !!! 🤧")
 
     def run(self):
         """Run the bot."""
