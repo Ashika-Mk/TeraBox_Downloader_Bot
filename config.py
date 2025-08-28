@@ -71,7 +71,7 @@ TG_BOT_WORKERS = int(os.environ.get("TG_BOT_WORKERS", "200"))
 
 
 
-START_PIC = os.environ.get("START_PIC", "https://telegra.ph/file/ec17880d61180d3312d6a.jpg")
+START_PIC = os.environ.get("START_PIC", "https://files.catbox.moe/7ugjlq.jpg")
 
 FORCE_PIC = os.environ.get("FORCE_PIC", "https://telegra.ph/file/e292b12890b8b4b9dcbd1.jpg")
 
@@ -111,7 +111,7 @@ PICS = (os.environ.get("PICS", "https://envs.sh/4Iq.jpg https://envs.sh/4IW.jpg 
 
 PREMIUM_BUTTON = reply_markup=InlineKeyboardMarkup(
 
-        [[InlineKeyboardButton("Remove Ads In One Click", callback_data="buy_prem")]]
+        [[InlineKeyboardButton("⚜️ Rᴇᴍᴏᴠᴇ Aᴅs Iɴ Oɴᴇ Cʟɪᴄᴋ ⚜️", callback_data="buy_prem")]]
 
 )
 
@@ -119,7 +119,7 @@ PREMIUM_BUTTON = reply_markup=InlineKeyboardMarkup(
 
 PREMIUM_BUTTON2 = reply_markup=InlineKeyboardMarkup(
 
-        [[InlineKeyboardButton("Remove Ads In One Click", callback_data="buy_prem")]]
+        [[InlineKeyboardButton("⚜️ Rᴇᴍᴏᴠᴇ Aᴅs Iɴ Oɴᴇ Cʟɪᴄᴋ ⚜️", callback_data="buy_prem")]]
 
 ) 
 
@@ -131,13 +131,13 @@ OWNER_TAG = os.environ.get("OWNER_TAG", "Monster_Mk_Bot")
 
 #UPI ID
 
-UPI_ID = os.environ.get("UPI_ID", "rohit23pnb@axl")
+UPI_ID = os.environ.get("UPI_ID", "")
 
 
 
 #UPI QR CODE IMAGE
 
-UPI_IMAGE_URL = os.environ.get("UPI_IMAGE_URL", "https://t.me/paymentbot6/2")
+UPI_IMAGE_URL = os.environ.get("UPI_IMAGE_URL", "")
 
 
 
@@ -157,31 +157,31 @@ SCREENSHOT_URL = os.environ.get("SCREENSHOT_URL", "")
 
 #7 Days
 
-PRICE1 = os.environ.get("PRICE1", "0 rs")
+PRICE1 = os.environ.get("PRICE1", "150 rs")
 
 
 
 #1 Month
 
-PRICE2 = os.environ.get("PRICE2", "60 rs")
+PRICE2 = os.environ.get("PRICE2", "200 rs")
 
 
 
 #3 Month
 
-PRICE3 = os.environ.get("PRICE3", "150 rs")
+PRICE3 = os.environ.get("PRICE3", "270 rs")
 
 
 
 #6 Month
 
-PRICE4 = os.environ.get("PRICE4", "280 rs")
+PRICE4 = os.environ.get("PRICE4", "350 rs")
 
 
 
 #1 Year
 
-PRICE5 = os.environ.get("PRICE5", "550 rs")
+PRICE5 = os.environ.get("PRICE5", "1300 rs")
 
 
 
@@ -199,11 +199,11 @@ DISABLE_CHANNEL_BUTTON = os.environ.get("True", True) == 'True'
 
 
 
-BOT_STATS_TEXT = "<b>BOT UPTIME</b>\n{uptime}"
+BOT_STATS_TEXT = "<b>Bᴏᴛ Uᴘᴛɪᴍᴇ</b>\n{uptime}"
 
 
 
-USER_REPLY_TEXT = "❌Don't send me messages directly I'm only Terabox Download Bot!"
+USER_REPLY_TEXT = "Dᴏɴ'ᴛ Sᴇɴᴅ Mᴇ Mᴇssᴀɢᴇs Dɪʀᴇᴄᴛʟʏ I'ᴍ Oɴʟʏ Tᴇʀᴀʙᴏx Dᴏᴡɴʟᴏᴀᴅ Bᴏᴛ !!! 🤷"
 
 
 
@@ -250,6 +250,7 @@ logging.getLogger("pyrogram").setLevel(logging.WARNING)
 def LOGGER(name: str) -> logging.Logger:
 
     return logging.getLogger(name)
+
 
 
 
