@@ -1,7 +1,7 @@
 def format_progress_bar(filename, percentage, done, total_size, status, eta, speed, elapsed, user_mention, user_id, aria2p_gid):
     bar_length = 10
     filled_length = int(bar_length * percentage / 100)
-    bar = '★' * filled_length + '☆' * (bar_length - filled_length)
+    bar = '▰' * filled_length + '▱' * (bar_length - filled_length)
     def format_size(size):
         size = int(size)
         if size < 1024:
@@ -25,10 +25,10 @@ def format_progress_bar(filename, percentage, done, total_size, status, eta, spe
             return f"{hours} hr {minutes} min"
     
     return (
-        f"┏ ғɪʟᴇɴᴀᴍᴇ: {filename}\n"
+        f"┏🕵️ Fɪʟᴇɴᴀᴍᴇ : {filename}\n"
         f"┠ [{bar}] {percentage:.2f}%\n"
-        f"┠ ᴘʀᴏᴄᴇssᴇᴅ: {format_size(done)} ᴏғ {format_size(total_size)}\n"
-        f"┠ sᴛᴀᴛᴜs: {status}\n"
-        f"┠ sᴘᴇᴇᴅ: {format_size(speed)}/s\n"
-        f"┖ ᴜsᴇʀ: {user_mention} | ɪᴅ: {user_id}" 
+        f"┠🔄 Pʀᴏᴄᴇssᴇᴅ : {format_size(done)} ᴏғ {format_size(total_size)}\n"
+        f"┠📶 Sᴛᴀᴛᴜs : {status}\n"
+        f"┠⚡ Sᴘᴇᴇᴅ : {format_size(speed)}/s\n"
+        f"┖👷🏻‍♂️ Usᴇʀ : {user_mention} |⏰ Iᴅ : {user_id}" 
     )
