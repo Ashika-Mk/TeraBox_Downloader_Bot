@@ -133,9 +133,10 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        try:
     TERABOX_API_URL = "https://terabox-api.delphadex.com"
-    api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token=2e00787c-996c-46c8-8be3-58bb926a1b67_8058827263")
+    api_response = await fetch_json(
+        f"{TERABOX_API_URL}/url?url={url}&token=2e00787c-996c-46c8-8be3-58bb926a1b67_8058827263"
+    )
 except Exception as e:
     print(f"Error: {e}")
 
