@@ -7,19 +7,19 @@ autodel_cmd_pic = "https://telegra.ph/file/a64533814021b40057ccd.jpg"
 SET_SHORTENER_CMD_TXT = "Shortener is {shortener_status}. Use button to configure the shortener."
 
 #start message
-START_MSG = """Hello {mention}
+START_MSG = """Hᴇʟʟᴏ {mention} 👋
 
-I can Download terabox files and having Advanced features 😎 ."""
+I Cᴀɴ Dᴏᴡɴʟᴏᴀᴅ Tᴇʀᴀʙᴏx Fɪʟᴇs Aɴᴅ Hᴀᴠɪɴɢ Aᴅᴠᴀɴᴄᴇᴅ Fᴇᴀᴛᴜʀᴇs !!! 😎💥"""
 
 
 #Force sub message 
-FORCE_MSG =  """Hello {mention}
+FORCE_MSG =  """Hᴇʟʟᴏ {mention} 👋
 
-<b>You need to join in my Channel/Group to use me
+<b>Yᴏᴜ Nᴇᴇᴅ Tᴏ Jᴏɪɴ Iɴ Mʏ Cʜᴀɴɴᴇʟ / Gʀᴏᴜᴘ Tᴏ Usᴇ Mᴇ
 
-Kindly Please join Channel...
+Kɪɴᴅʟʏ Pʟᴇᴀsᴇ Jᴏɪɴ Cʜᴀɴɴᴇʟ !!! 🤷
 
-❗Fᴀᴄɪɴɢ ᴘʀᴏʙʟᴇᴍs, ᴜsᴇ: /help</b>"""
+❗Fᴀᴄɪɴɢ Pʀᴏʙʟᴇᴍs, Usᴇ : /help</b>"""
 
 CMD_TXT = """<b>🤖 𝗕𝗔𝗦𝗜𝗖 𝗔𝗗𝗠𝗜𝗡 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦 :
 
@@ -42,13 +42,15 @@ HELP_TEXT = """<b>⁉️ Hᴇʟʟᴏ {mention} ~
 ‣ /help -</b> Oᴘᴇɴ ᴛʜɪs ʜᴇʟᴘ ᴍᴇssᴀɢᴇ !</blockquote>
 <b><i>◈ Sᴛɪʟʟ ʜᴀᴠᴇ ǫᴜᴇsᴛɪᴏɴs? Cᴏɴᴛᴀᴄᴛ ᴛʜᴇ ᴀᴅᴍɪɴs ᴏʀ ᴊᴏɪɴ ᴏᴜʀ ɢʀᴏᴜᴘ ғᴏʀ ᴍᴏʀᴇ ʜᴇʟᴘ !</i></b>"""
 
-ABOUT_TXT = """<b>🤖 ᴍʏ ɴᴀᴍᴇ: {botname}
-<blockquote expandable>◈ ᴀᴅᴠᴀɴᴄᴇ ғᴇᴀᴛᴜʀᴇs: <a href='https://telegra.ph/BOT-FEATURES-11-09-28'>Cʟɪᴄᴋ ʜᴇʀᴇ</a>
-◈ ᴏᴡɴᴇʀ: {ownername}
-◈ ʟᴀɴɢᴜᴀɢᴇ: <a href='https://docs.python.org/3/'>Pʏᴛʜᴏɴ 3</a>
-◈ ʟɪʙʀᴀʀʏ: <a href='https://docs.pyrogram.org/'>Pʏʀᴏɢʀᴀᴍ ᴠ2</a>
-◈ ᴅᴀᴛᴀʙᴀsᴇ: <a href='https://www.mongodb.com/docs/'>Mᴏɴɢᴏ ᴅʙ</a>
-🧑‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ: @rohit_1888</b></blockquote>"""
+ABOUT_TXT = """<b>╭────[ Mʏ Dᴇᴛᴀɪʟꜱ ]────⍟
+├⍟ Mʏ Nᴀᴍᴇ : <a href=https://t.me/TeraBox_Downloaderz_Bot>Tᴇʀᴀʙᴏx Dᴏᴡɴʟᴏᴀᴅᴇʀ</a>
+├⍟ Dᴇᴠᴇʟᴏᴘᴇʀ : <a href=https://t.me/Monster_Mk_Bot>Mᴏɴꜱᴛᴇʀ Mᴋ</a> 
+├⍟ Lɪʙʀᴀʀʏ : <a href='https://docs.pyrogram.org/'>Pʏʀᴏɢʀᴀᴍ</a>
+├⍟ Lᴀɴɢᴜᴀɢᴇ : <a href='https://www.python.org/download/releases/3.0/'>Pʏᴛʜᴏɴ 𝟹</a> 
+├⍟ Dᴀᴛᴀʙᴀsᴇ : <a href='https://www.mongodb.com/'>Mᴏɴɢᴏ Dʙ</a> 
+├⍟ Bᴏᴛ Sᴇʀᴠᴇʀ : <a href='https://heroku.com/'>Hᴇʀᴏᴋᴜ</a> 
+├⍟ Bᴜɪʟᴅ Sᴛᴀᴛᴜs : V 𝟸.𝟶.𝟾𝟶 [ Aᴅᴠᴀɴᴄᴇ ]
+╰───────────────⍟</b>"""
 
 SETTING_TXT = """<b>⚙️ Cᴏɴғɪɢᴜʀᴀᴛɪᴏɴs</b>
 <blockquote expandable>◈ ᴛᴏᴛᴀʟ ғᴏʀᴄᴇ sᴜʙ ᴄʜᴀɴɴᴇʟ:  <b>{total_fsub}</b>
