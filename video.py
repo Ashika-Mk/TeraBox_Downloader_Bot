@@ -137,7 +137,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        api_response = await fetch_json(f"http://terabox-api.delphadex.com/url?url={url}&token=afd64993-d2e0-4782-b45c-cd106ff410a9_8058827263")
+        api_response = await fetch_json(f"http://terabox-api.delphadex.com/url?url={url}&token=5b187371-e0b7-4e68-a6fc-ef7b4276bbf6_8058827263")
 
         if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
             raise Exception("Invalid API response format.")
