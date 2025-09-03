@@ -48,8 +48,8 @@ from collections import defaultdict
 #rohit95 old token
 
 TERABOX_API_URL = "http://terabox-api.delphadex.com"
-TERABOX_API_TOKEN = ""
-
+TERABOX_API_TOKEN = "35851b03-04ce-430b-ad6a-bc208aee161c_8058827263"
+THUMBNAIL = "https://envs.sh/S-T.jpg"
 
 
 downloads_manager = {}
@@ -137,7 +137,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
         logging.info(f"Fetching video info: {url}")
 
         # Fetch video details
-        api_response = await fetch_json(f"http://terabox-api.delphadex.com/url?url={url}&token=5b187371-e0b7-4e68-a6fc-ef7b4276bbf6_8058827263")
+        api_response = await fetch_json(f"{TERABOX_API_URL}/url?url={url}&token={TERABOX_API_TOKEN}")
 
         if not api_response or not isinstance(api_response, list) or "filename" not in api_response[0]:
             raise Exception("Invalid API response format.")
@@ -166,7 +166,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
                 await asyncio.sleep(3)
 
         # Send completion message
-        await reply_msg.edit_text(f"Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ !!! 😎❤️‍🔥\n📂 {video_title}")
+        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
         return file_path, thumb_url, video_title, None  # No duration in response
 
     except Exception as e:
