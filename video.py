@@ -166,7 +166,7 @@ async def download_video(url, reply_msg, user_mention, user_id, max_retries=3):
                 await asyncio.sleep(3)
 
         # Send completion message
-        await reply_msg.edit_text(f"✅ Download Complete!\n📂 {video_title}")
+        await reply_msg.edit_text(f"Dᴏᴡɴʟᴏᴀᴅ Cᴏᴍᴘʟᴇᴛᴇ !!! 😎❤️‍🔥\n📂 {video_title}")
         return file_path, thumb_url, video_title, None  # No duration in response
 
     except Exception as e:
@@ -266,7 +266,7 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             collection_message = await client.send_video(
                 chat_id=db_channel_id,
                 video=file_path,
-                caption=f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>",
+                caption=f"🎥 Tɪᴛᴛʟᴇ : {video_title}\n🕵🏻‍♂️ Nᴀᴍᴇ : {user_mention}\n👤 <b>Bʏ @MKxBoTz </b>",
                 thumb=thumbnail_path if thumbnail_path else None,
                 duration=duration,
                 supports_streaming=True,
@@ -281,7 +281,7 @@ async def upload_video(client, file_path, video_title, reply_msg, db_channel_id,
             )
 
             # Final caption + button
-            caption = "" if HIDE_CAPTION else f"✨ {video_title}\n👤 ʟᴇᴇᴄʜᴇᴅ ʙʏ : {user_mention}\n📥 <b>ʙʏ @Javpostr </b>"
+            caption = "" if HIDE_CAPTION else f"🎥 Tɪᴛᴛʟᴇ : {video_title}\n🕵🏻‍♂️ Nᴀᴍᴇ : {user_mention}\n📥 <b>Bʏ @MKxBoTz </b>"
             reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=button_name, url=button_link)]]) if CHNL_BTN else None
 
             await copied_msg.edit_caption(
