@@ -34,7 +34,7 @@ CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1002861812069"))
 
 #OWNER ID
 
-OWNER_ID = int(os.environ.get("OWNER_ID", "8060684565"))
+OWNER_ID = int(os.environ.get("OWNER_ID", "7328629001"))
 
 
 
