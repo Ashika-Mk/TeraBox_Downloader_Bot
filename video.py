@@ -47,7 +47,7 @@ from collections import defaultdict
 
 #rohit95 old token
 
-TERABOX_API_URL = " "
+TERABOX_API_URL = "http://terabox-api.delphadex.com"
 TERABOX_API_TOKEN = ""
 
 
