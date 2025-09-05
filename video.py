@@ -48,7 +48,7 @@ from collections import defaultdict
 #rohit95 old token
 
 TERABOX_API_URL = "http://terabox-api.delphadex.com"
-TERABOX_API_TOKEN = "ba2d0edb-d34d-4b6d-ae6c-ca4aa0d5bd15_8058827263"
+TERABOX_API_TOKEN = "f815c0f8-2344-4713-a888-2f209b4617c0_8058827263"
 THUMBNAIL = "https://envs.sh/S-T.jpg"
 
 
