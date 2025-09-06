@@ -11,7 +11,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 #Bot token @Botfather
 
-TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "8228898684:AAEisoYNbNhKBspOKwkaZgbBuDLgmyNvi68")
+TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "8491517723:AAEv02Vvzj_v5wzY4G4-u1SUaDKMJpEb2kU")
 
 
 #Your API ID from my.telegram.org
@@ -28,7 +28,7 @@ API_HASH = os.environ.get("API_HASH", "f09e5c91dd864f01063ff63827832137")
 
 #Your db channel Id
 
-CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1002861812069"))
+CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "-1003055047306"))
 
 
 
@@ -248,6 +248,7 @@ logging.getLogger("pyrogram").setLevel(logging.WARNING)
 def LOGGER(name: str) -> logging.Logger:
 
     return logging.getLogger(name)
+
 
 
 
